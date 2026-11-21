@@ -1,0 +1,3769 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>旅程地图</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha512-Zcn6bjR/8RZbLEpLIeOwNtzREBAJnUKESxces60Mpoj+2okopSAcSUIUOseddDm0cxnGQzxIR7vJgsLZbdLE3w=="
+      crossorigin=""
+    />
+    <style>
+      :root {
+        --ink: #203735;
+        --ink-soft: #49645f;
+        --muted: #778984;
+        --line: #d9e5de;
+        --panel: rgba(255, 253, 248, 0.93);
+        --panel-strong: #fffdf8;
+        --green: #0f7667;
+        --green-dark: #07584d;
+        --green-pale: #e5f4ed;
+        --gold: #e0a74c;
+        --rose: #db735e;
+        --airport: #7367d8;
+        --station: #3184c7;
+        --hotel: #c86e3b;
+        --spot: #139878;
+        --food: #c95379;
+        --shadow: 0 18px 46px rgba(22, 55, 48, 0.16);
+        --shadow-soft: 0 8px 24px rgba(22, 55, 48, 0.11);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-width: 860px;
+        color: var(--ink);
+        background: #e7f0ea;
+        font-family:
+          Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      }
+      button,
+      input,
+      select,
+      textarea {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+        transition:
+          transform 0.18s ease,
+          box-shadow 0.18s ease,
+          border-color 0.18s ease,
+          background 0.18s ease,
+          color 0.18s ease;
+      }
+      button:active {
+        transform: translateY(1px);
+      }
+      ::selection {
+        color: #fff;
+        background: var(--green);
+      }
+      .app {
+        height: 100vh;
+        min-height: 650px;
+        display: grid;
+        grid-template-rows: 76px 1fr;
+      }
+      .topbar {
+        position: relative;
+        z-index: 1000;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 30px;
+        background: linear-gradient(
+          105deg,
+          rgba(255, 253, 248, 0.98),
+          rgba(247, 252, 248, 0.94)
+        );
+        border-bottom: 1px solid rgba(217, 229, 222, 0.9);
+        box-shadow: 0 4px 22px rgba(30, 70, 60, 0.08);
+        backdrop-filter: blur(16px);
+      }
+      .topbar:after {
+        position: absolute;
+        right: 0;
+        bottom: -1px;
+        left: 0;
+        height: 2px;
+        content: "";
+        background: linear-gradient(
+          90deg,
+          var(--green),
+          #50b38d 45%,
+          var(--gold) 82%,
+          transparent
+        );
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .brand-mark {
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        color: #fff;
+        background: linear-gradient(145deg, #16a080, var(--green-dark));
+        border: 2px solid rgba(255, 255, 255, 0.72);
+        border-radius: 13px;
+        box-shadow: 0 7px 16px rgba(15, 118, 103, 0.28);
+        font-size: 22px;
+        font-weight: 700;
+        transform: rotate(-6deg);
+      }
+      .brand-mark::first-letter {
+        display: block;
+      }
+      .brand > div:last-child {
+        display: grid;
+        gap: 2px;
+      }
+      h1 {
+        margin: 0;
+        font-family: "Songti SC", "STSong", serif;
+        font-size: 22px;
+        letter-spacing: 0.08em;
+        line-height: 1;
+      }
+      .draft-label {
+        letter-spacing: 0.025em;
+      }
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+      }
+      .layer-switch {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 11px 6px 12px;
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.56);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .layer-select {
+        min-width: 140px;
+        padding: 4px 21px 4px 2px;
+        border: 0;
+        color: var(--ink);
+        background: transparent;
+        outline: none;
+        font-weight: 650;
+      }
+      .layer-select:focus,
+      .control:focus,
+      .note-input:focus {
+        border-color: var(--green);
+        box-shadow: 0 0 0 4px rgba(15, 118, 103, 0.12);
+      }
+      .button {
+        border: 1px solid var(--line);
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.82);
+        border-radius: 10px;
+        padding: 9px 13px;
+        font-size: 13px;
+        font-weight: 650;
+        box-shadow: 0 2px 0 rgba(32, 55, 53, 0.02);
+      }
+      .button:hover {
+        border-color: #a8cbbd;
+        color: var(--green-dark);
+        background: #fbfffc;
+        box-shadow: 0 5px 13px rgba(20, 89, 71, 0.12);
+        transform: translateY(-1px);
+      }
+      .button.primary {
+        color: #fff;
+        background: linear-gradient(135deg, #13947b, var(--green-dark));
+        border-color: var(--green-dark);
+        font-weight: 800;
+        box-shadow: 0 7px 16px rgba(15, 118, 103, 0.22);
+      }
+      .button.primary:hover {
+        color: #fff;
+        background: linear-gradient(135deg, #16a488, #075047);
+        box-shadow: 0 9px 19px rgba(15, 118, 103, 0.3);
+      }
+      #map {
+        height: 100%;
+        width: 100%;
+        z-index: 1;
+        background: #d9e9df;
+      }
+      .leaflet-control-attribution {
+        font-size: 10px;
+      }
+      .leaflet-control-zoom {
+        overflow: hidden;
+        border: 1px solid rgba(255, 255, 255, 0.8) !important;
+        border-radius: 12px !important;
+        box-shadow: var(--shadow-soft) !important;
+      }
+      .leaflet-control-zoom a {
+        width: 37px !important;
+        height: 37px !important;
+        line-height: 35px !important;
+        color: var(--ink) !important;
+        border-color: var(--line) !important;
+        background: rgba(255, 253, 248, 0.96) !important;
+      }
+      .leaflet-control-zoom a:hover {
+        color: var(--green) !important;
+        background: #fff !important;
+      }
+      .leaflet-bottom.leaflet-right {
+        margin: 0 14px 10px 0;
+      }
+      .leaflet-top.leaflet-left {
+        margin: 15px 0 0 15px;
+      }
+      .panel {
+        position: absolute;
+        z-index: 600;
+        background: var(--panel);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        border-radius: 18px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(18px);
+      }
+      .add-panel {
+        left: 24px;
+        top: 22px;
+        width: 304px;
+        padding: 18px;
+      }
+      .panel-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+      }
+      .panel h2 {
+        margin: 0;
+        font-size: 15px;
+        letter-spacing: 0.04em;
+      }
+      .panel-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        padding: 6px 10px;
+        border: 1px solid #b7d7c8;
+        border-radius: 8px;
+        color: var(--green);
+        background: #f8fffb;
+        font-size: 11px;
+        font-weight: 850;
+        box-shadow: 0 2px 5px rgba(23, 107, 88, 0.08);
+        white-space: nowrap;
+      }
+      .panel-toggle:hover {
+        color: #fff;
+        background: var(--green);
+        border-color: var(--green);
+        box-shadow: 0 5px 11px rgba(15, 118, 103, 0.2);
+      }
+      .field + .field {
+        margin-top: 13px;
+      }
+      label {
+        display: block;
+        margin-bottom: 7px;
+        color: var(--ink-soft);
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+      }
+      .control {
+        width: 100%;
+        padding: 10px 11px;
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.83);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        outline: none;
+        transition:
+          border-color 0.18s ease,
+          box-shadow 0.18s ease,
+          background 0.18s ease;
+      }
+      .control::placeholder {
+        color: #a2b1ac;
+      }
+      .add-panel .button {
+        width: 100%;
+        margin-top: 16px;
+      }
+      .help {
+        min-height: 16px;
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.4;
+      }
+      .is-adding .button.primary {
+        background: linear-gradient(135deg, #e89a59, #c96a4c);
+        border-color: #c96a4c;
+      }
+      .search-row {
+        display: grid;
+        grid-template-columns: 1fr 42px;
+        gap: 7px;
+      }
+      .search-button {
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--green);
+        border-radius: 10px;
+        color: #fff;
+        background: linear-gradient(135deg, #15977d, var(--green-dark));
+        font-size: 18px;
+        box-shadow: 0 5px 11px rgba(15, 118, 103, 0.19);
+      }
+      .search-button:hover {
+        background: var(--green-dark);
+        transform: translateY(-1px);
+      }
+      .search-results {
+        display: none;
+        max-height: 210px;
+        margin-top: 10px;
+        overflow: auto;
+        border-top: 1px solid var(--line);
+      }
+      .search-results.is-open {
+        display: block;
+      }
+      .search-status {
+        padding: 10px 2px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .search-result {
+        width: 100%;
+        display: block;
+        padding: 10px 5px;
+        border: 0;
+        border-bottom: 1px solid #edf2ee;
+        color: var(--ink);
+        background: transparent;
+        text-align: left;
+      }
+      .search-result:hover {
+        background: var(--green-pale);
+      }
+      .search-result-name {
+        display: block;
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .search-result-address {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 11px;
+        line-height: 1.35;
+      }
+      .detail-panel {
+        right: 350px;
+        top: 22px;
+        width: 282px;
+        padding: 18px;
+      }
+      .detail-panel[hidden] {
+        display: none;
+      }
+      .close,
+      .mini-button {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        padding: 3px;
+        font-size: 20px;
+        line-height: 1;
+      }
+      .close:hover,
+      .mini-button:hover {
+        color: var(--rose);
+        transform: scale(1.12);
+      }
+      .detail-type {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .detail-type-select {
+        min-width: 82px;
+        padding: 3px 20px 3px 5px;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        color: var(--muted);
+        background: transparent;
+        outline: none;
+        font-size: 12px;
+        font-weight: 800;
+      }
+      .detail-type-select:hover,
+      .detail-type-select:focus {
+        border-color: var(--line);
+        color: var(--green-dark);
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(15, 118, 103, 0.1);
+      }
+      .type-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--spot);
+        box-shadow: 0 0 0 4px rgba(19, 152, 120, 0.13);
+      }
+      .detail-name {
+        margin: 11px 0 14px;
+        font-family: "Songti SC", "STSong", serif;
+        font-size: 22px;
+        letter-spacing: 0.03em;
+      }
+      .note-input {
+        width: 100%;
+        min-height: 70px;
+        resize: vertical;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.82);
+        font:
+          12px/1.5 Inter,
+          "PingFang SC",
+          "Microsoft YaHei",
+          sans-serif;
+        outline: none;
+      }
+      .order-controls {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 15px;
+      }
+      .small-button {
+        padding: 8px;
+        border: 1px solid var(--line);
+        color: var(--ink-soft);
+        background: rgba(255, 255, 255, 0.78);
+        border-radius: 8px;
+        font-size: 12px;
+        font-weight: 650;
+      }
+      .small-button:hover:not(:disabled) {
+        color: var(--green);
+        border-color: #9bc7b5;
+        background: #fbfffc;
+      }
+      .small-button:disabled {
+        cursor: not-allowed;
+        color: #b5c2bf;
+        background: #f5f8f7;
+      }
+      .delete {
+        width: 100%;
+        margin-top: 10px;
+        padding: 7px;
+        border: 0;
+        background: transparent;
+        color: #bf4b4a;
+        font-size: 12px;
+        font-weight: 650;
+      }
+      .delete:hover {
+        color: #a43035;
+        background: #fff4f3;
+        border-radius: 8px;
+      }
+      .itinerary-sidebar {
+        right: 0;
+        top: 22px;
+        bottom: 28px;
+        width: 320px;
+        padding: 17px;
+        overflow: auto;
+        border-radius: 14px 0 0 14px;
+      }
+      .itinerary-sidebar::-webkit-scrollbar,
+      .search-results::-webkit-scrollbar,
+      .draft-list::-webkit-scrollbar {
+        width: 7px;
+      }
+      .itinerary-sidebar::-webkit-scrollbar-thumb,
+      .search-results::-webkit-scrollbar-thumb,
+      .draft-list::-webkit-scrollbar-thumb {
+        background: #c8d9d1;
+        border-radius: 99px;
+      }
+      .sidebar-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 0 14px;
+        color: var(--ink-soft);
+        font-size: 12px;
+        font-weight: 850;
+        letter-spacing: 0.06em;
+      }
+      .side-action {
+        padding: 5px 8px;
+        border: 1px solid #b7d7c8;
+        border-radius: 7px;
+        color: var(--green);
+        background: #f8fffb;
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .side-action:hover {
+        color: #fff;
+        background: var(--green);
+        border-color: var(--green);
+      }
+      .trip-group {
+        margin: 0 0 14px;
+      }
+      .trip-row,
+      .day-row,
+      .place-row {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .collapse-toggle {
+        width: 20px;
+        height: 25px;
+        flex: 0 0 20px;
+        padding: 0;
+        border: 0;
+        color: var(--green);
+        background: transparent;
+        font-size: 16px;
+        line-height: 1;
+      }
+      .collapse-toggle:hover {
+        color: var(--green-dark);
+        transform: scale(1.15);
+      }
+      .trip-row {
+        padding: 10px 9px;
+        background: linear-gradient(100deg, #def2e9, #f4fbf7);
+        border: 1px solid rgba(186, 218, 204, 0.65);
+        border-radius: 11px;
+        box-shadow: 0 2px 7px rgba(27, 91, 70, 0.05);
+      }
+      .trip-title,
+      .day-title {
+        min-width: 0;
+        flex: 1;
+        color: var(--ink);
+        background: transparent;
+        border: 0;
+        outline: none;
+        font-weight: 800;
+      }
+      .trip-title {
+        font-size: 14px;
+      }
+      .day-title {
+        font-size: 12px;
+      }
+      .trip-title:focus,
+      .day-title:focus {
+        background: #fff;
+        box-shadow: 0 0 0 3px rgba(15, 118, 103, 0.15);
+        border-radius: 6px;
+      }
+      .visibility-button {
+        width: 25px;
+        height: 25px;
+        flex: 0 0 25px;
+        display: grid;
+        place-items: center;
+        padding: 0;
+        border: 0;
+        border-radius: 7px;
+        color: var(--green);
+        background: rgba(255, 255, 255, 0.57);
+      }
+      .visibility-button:hover {
+        color: #fff;
+        background: var(--green);
+      }
+      .visibility-button.is-hidden {
+        color: #b4c1be;
+        text-decoration: line-through;
+      }
+      .days {
+        margin: 8px 0 0 11px;
+        padding-left: 11px;
+        border-left: 1px solid #c8ddd3;
+      }
+      .days.is-collapsed,
+      .place-list.is-collapsed {
+        display: none;
+      }
+      .day-group + .day-group {
+        margin-top: 8px;
+      }
+      .day-row {
+        padding: 5px 0;
+      }
+      .place-list {
+        min-height: 22px;
+        margin: 0 0 2px 31px;
+      }
+      .place-row {
+        width: 100%;
+        padding: 6px 5px;
+        border: 0;
+        color: var(--ink);
+        background: transparent;
+        text-align: left;
+        border-radius: 7px;
+        font-size: 12px;
+      }
+      .place-row:hover,
+      .place-row.is-selected,
+      .place-row.is-drag-over {
+        background: var(--green-pale);
+      }
+      .place-row.is-selected {
+        font-weight: 800;
+        box-shadow: inset 3px 0 var(--green);
+      }
+      .place-row[draggable="true"] {
+        cursor: grab;
+      }
+      .place-row.is-dragging {
+        opacity: 0.4;
+      }
+      .place-dot {
+        width: 8px;
+        height: 8px;
+        flex: 0 0 8px;
+        border-radius: 50%;
+        background: var(--spot);
+        box-shadow: 0 0 0 3px rgba(19, 152, 120, 0.1);
+      }
+      .place-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .place-order {
+        margin-left: auto;
+        color: var(--muted);
+        font-size: 10px;
+        font-weight: 750;
+      }
+      .segment-editor {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin: 2px 0 2px 8px;
+        padding: 4px 4px 4px 10px;
+        border-left: 1px dashed #a6cdbd;
+        color: var(--muted);
+        font-size: 10px;
+      }
+      .segment-editor::before {
+        content: "↓";
+        color: var(--green);
+        font-size: 12px;
+      }
+      .transport-select {
+        min-width: 0;
+        flex: 1;
+        padding: 4px 5px;
+        border: 1px solid #d5e2de;
+        border-radius: 6px;
+        color: #436760;
+        background: #fbfdfc;
+        font-size: 10px;
+      }
+      .custom-transport {
+        width: 90px;
+        padding: 4px 5px;
+        border: 1px solid #d5e2de;
+        border-radius: 6px;
+        color: #436760;
+        background: #fff;
+        font-size: 10px;
+      }
+      .drop-target {
+        outline: 1px dashed var(--green);
+        outline-offset: 2px;
+        border-radius: 6px;
+      }
+      .add-day {
+        width: 100%;
+        margin: 7px 0 1px;
+        padding: 6px;
+        border: 1px dashed #9ec9b7;
+        border-radius: 8px;
+        color: var(--green);
+        background: rgba(246, 253, 249, 0.65);
+        font-size: 11px;
+        font-weight: 750;
+      }
+      .add-day:hover {
+        background: var(--green-pale);
+        border-color: var(--green);
+      }
+      .map-pin {
+        --pin: var(--spot);
+        position: relative;
+        width: 40px;
+        height: 48px;
+        display: grid;
+        place-items: start center;
+        pointer-events: auto;
+      }
+      .pin-shape {
+        width: 37px;
+        height: 37px;
+        display: grid;
+        place-items: center;
+        border: 3px solid #fff;
+        border-radius: 50% 50% 50% 8px;
+        transform: rotate(-45deg);
+        color: #fff;
+        background: var(--pin);
+        box-shadow: 0 6px 15px rgba(17, 46, 40, 0.3);
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .pin-shape span {
+        transform: rotate(45deg);
+      }
+      .pin-order {
+        position: absolute;
+        right: -4px;
+        top: -5px;
+        width: 18px;
+        height: 18px;
+        display: grid;
+        place-items: center;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        color: #fff;
+        background: var(--green-dark);
+        font-size: 9px;
+        font-weight: 800;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.18);
+      }
+      .pin-label {
+        position: absolute;
+        top: 41px;
+        left: 21px;
+        color: var(--ink);
+        font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+        font-weight: 800;
+        white-space: nowrap;
+        text-shadow:
+          0 1px 0 #fff,
+          1px 0 0 #fff,
+          -1px 0 0 #fff;
+      }
+      .pin-note {
+        position: absolute;
+        z-index: 10;
+        top: 59px;
+        left: 20px;
+        max-width: 155px;
+        padding: 3px 6px;
+        overflow: hidden;
+        border: 1px solid rgba(215, 187, 104, 0.35);
+        border-radius: 5px;
+        color: #72572b;
+        background: rgba(255, 248, 211, 0.97);
+        font:
+          11px/1.25 Inter,
+          "PingFang SC",
+          "Microsoft YaHei",
+          sans-serif;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        box-shadow: 0 3px 8px rgba(80, 61, 17, 0.16);
+        transform: translate(var(--note-x, 0px), var(--note-y, 0px));
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+        pointer-events: auto;
+      }
+      .pin-note.is-dragging {
+        cursor: grabbing;
+      }
+      .place-note {
+        display: block;
+        margin: -1px 5px 5px 17px;
+        overflow: hidden;
+        color: #8a6c32;
+        font-size: 10px;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+      }
+      .marker-selected .pin-shape {
+        outline: 5px solid rgba(15, 118, 103, 0.23);
+      }
+      .route-halo {
+        stroke: #fff;
+        stroke-width: 8;
+        stroke-opacity: 0.82;
+      }
+      .route-path {
+        stroke: var(--green);
+        stroke-width: 3.5;
+        stroke-dasharray: 7 7;
+        stroke-opacity: 0.92;
+      }
+      .navigation-halo {
+        stroke: #fff;
+        stroke-width: 9;
+        stroke-opacity: 0.84;
+      }
+      .navigation-path {
+        stroke: #0f7667;
+        stroke-width: 4.5;
+        stroke-opacity: 0.97;
+      }
+      .distance-label {
+        padding: 3px 6px;
+        border: 1px solid #d4e0dc;
+        border-radius: 6px;
+        color: #3b6259;
+        background: rgba(255, 255, 255, 0.94);
+        box-shadow: 0 3px 8px rgba(26, 67, 56, 0.14);
+        font:
+          700 10px/1 Inter,
+          "PingFang SC",
+          sans-serif;
+        white-space: nowrap;
+      }
+      .navigation-label {
+        color: #07584d;
+        border-color: #a8cdbd;
+        background: rgba(246, 253, 249, 0.98);
+      }
+      .navigation-note {
+        display: none !important;
+      }
+      .route-options-panel {
+        position: absolute;
+        z-index: 670;
+        left: 24px;
+        bottom: 24px;
+        width: min(354px, calc(100vw - 48px));
+        max-height: min(52vh, 480px);
+        overflow: hidden;
+        border: 1px solid rgba(214, 226, 222, 0.96);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 16px 38px rgba(24, 69, 58, 0.22);
+        backdrop-filter: blur(10px);
+      }
+      .route-options-panel[hidden],
+      .route-options-reopen[hidden] {
+        display: none;
+      }
+      .route-options-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding: 11px 12px 9px;
+        border-bottom: 1px solid #edf2f0;
+      }
+      .route-options-heading strong {
+        color: var(--ink);
+        font-size: 12px;
+      }
+      .route-options-heading span {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+      .route-options-close,
+      .route-options-reopen {
+        padding: 6px 8px;
+        border: 1px solid #cfe0da;
+        border-radius: 7px;
+        color: var(--green);
+        background: #f8fffb;
+        font-size: 10px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      .route-options-close:hover,
+      .route-options-reopen:hover {
+        color: #fff;
+        border-color: var(--green);
+        background: var(--green);
+      }
+      .route-options-list {
+        max-height: calc(min(52vh, 480px) - 59px);
+        overflow: auto;
+        padding: 7px;
+      }
+      .route-option-row {
+        padding: 8px;
+        border-bottom: 1px solid #edf2f0;
+      }
+      .route-option-row:last-child {
+        border-bottom: 0;
+      }
+      .route-option-title {
+        display: block;
+        overflow: hidden;
+        color: #3d5b54;
+        font-size: 10px;
+        font-weight: 800;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .route-option-choices {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 5px;
+        margin-top: 6px;
+      }
+      .route-choice-button {
+        padding: 6px 3px;
+        border: 1px solid #d7e4df;
+        border-radius: 7px;
+        color: #527069;
+        background: #fbfdfc;
+        font-size: 10px;
+        cursor: pointer;
+      }
+      .route-choice-button:hover,
+      .route-choice-button.is-selected {
+        color: #fff;
+        border-color: var(--green);
+        background: var(--green);
+      }
+      .route-option-unavailable {
+        display: block;
+        margin-top: 5px;
+        color: var(--muted);
+        font-size: 10px;
+      }
+      .route-options-reopen {
+        position: absolute;
+        z-index: 670;
+        left: 24px;
+        bottom: 24px;
+      }
+      .edge-reopen {
+        position: absolute;
+        z-index: 601;
+        top: 20px;
+        padding: 9px 8px;
+        border: 1px solid rgba(220, 230, 227, 0.96);
+        color: var(--green);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+        font-size: 11px;
+        writing-mode: vertical-rl;
+        letter-spacing: 0.12em;
+      }
+      .edge-reopen:hover {
+        background: #f6fbf8;
+      }
+      .reopen-search {
+        left: 0;
+        border-radius: 0 9px 9px 0;
+      }
+      .reopen-sidebar {
+        right: 0;
+        border-radius: 9px 0 0 9px;
+      }
+      .edge-reopen[hidden] {
+        display: none;
+      }
+      .map-only .add-panel,
+      .map-only .detail-panel,
+      .map-only .itinerary-sidebar,
+      .map-only .edge-reopen,
+      .map-only .navigation-note {
+        display: none !important;
+      }
+      .map-annotations-only #map {
+        background: #eff4f1;
+      }
+      .search-hidden .add-panel {
+        display: none;
+      }
+      .sidebar-hidden .itinerary-sidebar {
+        display: none;
+      }
+      .sidebar-hidden .detail-panel {
+        right: 24px;
+      }
+      .modal-mask {
+        position: fixed;
+        inset: 0;
+        z-index: 2000;
+        display: grid;
+        place-items: center;
+        background: rgba(13, 53, 45, 0.38);
+        backdrop-filter: blur(6px);
+      }
+      .modal-mask[hidden] {
+        display: none;
+      }
+      .modal {
+        width: 360px;
+        max-width: calc(100vw - 48px);
+        padding: 20px;
+        background: var(--panel-strong);
+        border: 1px solid rgba(255, 255, 255, 0.88);
+        border-radius: 18px;
+        box-shadow: 0 24px 70px rgba(10, 43, 36, 0.3);
+      }
+      .modal h3 {
+        margin: 0 0 14px;
+        font-family: "Songti SC", "STSong", serif;
+        font-size: 20px;
+        letter-spacing: 0.04em;
+      }
+      .modal .control {
+        margin-bottom: 6px;
+      }
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .draft-list {
+        max-height: 300px;
+        overflow: auto;
+        margin-top: 4px;
+      }
+      .draft-empty {
+        padding: 18px 2px;
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+      }
+      .draft-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 4px;
+        border-bottom: 1px solid #edf2f0;
+      }
+      .draft-item.is-active {
+        background: var(--green-pale);
+        border-radius: 9px;
+        padding-left: 9px;
+      }
+      .draft-info {
+        min-width: 0;
+        flex: 1;
+      }
+      .draft-name {
+        display: block;
+        font-size: 13px;
+        font-weight: 800;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .draft-meta {
+        display: block;
+        margin-top: 3px;
+        color: var(--muted);
+        font-size: 11px;
+      }
+      .draft-actions {
+        display: flex;
+        gap: 6px;
+      }
+      .draft-delete {
+        color: #b94040;
+        border-color: #f0d7d7;
+      }
+      .draft-label {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 650;
+      }
+      .backup-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 11px;
+      }
+      .backup-row .button {
+        flex: 1;
+        padding: 8px;
+        font-size: 12px;
+      }
+      .storage-status {
+        margin: 9px 0 0;
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.45;
+      }
+      .storage-status.is-remote {
+        color: var(--green);
+        font-weight: 800;
+      }
+      .add-panel,
+      .itinerary-sidebar {
+        transition:
+          transform 0.28s ease,
+          opacity 0.28s ease;
+      }
+      .search-hidden .add-panel {
+        transform: translateX(-120%);
+        opacity: 0;
+        pointer-events: none;
+      }
+      .sidebar-hidden .itinerary-sidebar {
+        transform: translateX(120%);
+        opacity: 0;
+        pointer-events: none;
+      }
+      .sidebar-hidden .detail-panel {
+        right: 24px;
+      }
+      .edge-reopen {
+        position: absolute;
+        z-index: 590;
+        top: 50%;
+        transform: translateY(-50%);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        color: var(--green);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+        padding: 10px 8px;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .edge-reopen:hover {
+        color: #fff;
+        background: var(--green);
+        border-color: var(--green);
+      }
+      .edge-reopen[hidden] {
+        display: none;
+      }
+      .reopen-search {
+        left: 0;
+        border-left: none;
+        border-radius: 0 10px 10px 0;
+      }
+      .reopen-sidebar {
+        right: 0;
+        border-right: none;
+        border-radius: 10px 0 0 10px;
+      }
+      /* 收起控件始终位于面板最上层，避免地图手势层或标题布局截获点击。 */
+      .panel-title,
+      .sidebar-heading {
+        position: relative;
+        isolation: isolate;
+      }
+      .panel-title {
+        z-index: 3;
+      }
+      .sidebar-heading {
+        z-index: 3;
+      }
+      .sidebar-heading > span {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        flex: 0 0 auto;
+      }
+      .panel-toggle {
+        position: relative;
+        z-index: 4;
+        min-height: 30px;
+        pointer-events: auto;
+        touch-action: manipulation;
+      }
+      .panel-toggle:focus-visible {
+        outline: 3px solid rgba(15, 118, 103, 0.3);
+        outline-offset: 2px;
+      }
+      .add-panel .panel-toggle {
+        margin-left: auto;
+      }
+      .itinerary-sidebar .panel-toggle {
+        padding-inline: 10px;
+      }
+      /* 原生开关：即使地图脚本或网络资源异常，左右栏也仍可收起与展开。 */
+      .panel-state {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        margin: -1px;
+        clip-path: inset(50%);
+        opacity: 0;
+        pointer-events: none;
+      }
+      #searchPanelState:checked ~ .add-panel {
+        display: none !important;
+      }
+      #sidebarPanelState:checked ~ .itinerary-sidebar {
+        display: none !important;
+      }
+      #searchPanelState:checked ~ .reopen-search,
+      #sidebarPanelState:checked ~ .reopen-sidebar {
+        display: block !important;
+        pointer-events: auto;
+      }
+      label.panel-toggle,
+      label.edge-reopen {
+        user-select: none;
+      }
+      /* 浮层相对 .app 定位，需避开 76px 高的顶部导航；否则标题与收起按钮会被导航栏盖住。 */
+      .add-panel,
+      .detail-panel,
+      .itinerary-sidebar {
+        top: calc(76px + 22px);
+      }
+      /* 地图便签：以地图经纬度为锚点，拖动、编辑与缩放控件均不触发地图手势。 */
+      .free-map-note {
+        position: relative;
+        width: 190px;
+        box-sizing: border-box;
+        padding: 7px 10px 10px;
+        border: 1px solid #ddc76e;
+        border-radius: 11px;
+        background: #fff8c9;
+        color: #503d13;
+        box-shadow: 0 8px 18px rgba(84, 62, 15, 0.24);
+        font:
+          600 13px/1.5 Inter,
+          "PingFang SC",
+          sans-serif;
+        transform: scale(var(--map-note-scale, 1));
+        transform-origin: top left;
+        pointer-events: auto;
+      }
+      .free-note-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin: -2px -5px 5px;
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(-3px);
+        transition:
+          opacity 0.16s ease,
+          transform 0.16s ease,
+          visibility 0.16s ease;
+      }
+      .free-map-note:hover .free-note-toolbar,
+      .free-map-note.is-dragging .free-note-toolbar,
+      .free-map-note.is-resizing .free-note-toolbar {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: translateY(0);
+      }
+      .free-note-grip {
+        padding: 1px 4px;
+        color: #8d7426;
+        cursor: grab;
+        letter-spacing: -2px;
+        user-select: none;
+      }
+      .free-note-tool {
+        width: 22px;
+        height: 22px;
+        padding: 0;
+        border: 1px solid rgba(136, 105, 26, 0.25);
+        border-radius: 6px;
+        color: #765c15;
+        background: rgba(255, 255, 255, 0.48);
+        font:
+          700 15px/1 Inter,
+          sans-serif;
+        cursor: pointer;
+      }
+      .free-note-tool:hover {
+        color: #fff;
+        background: #92731d;
+        border-color: #92731d;
+      }
+      .free-note-delete {
+        margin-left: auto;
+        color: #9b4940;
+      }
+      .free-note-delete:hover {
+        background: #a24840;
+        border-color: #a24840;
+      }
+      .free-note-text {
+        min-height: 48px;
+        max-height: 76px;
+        outline: none;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        overflow: hidden;
+        cursor: text;
+        pointer-events: auto;
+        user-select: text;
+        -webkit-user-select: text;
+        font-size: var(--note-font-size, 13px);
+        line-height: 1.35;
+      }
+      .free-note-text:focus {
+        overflow: auto;
+      }
+      .free-note-text:empty:before {
+        content: attr(data-placeholder);
+        color: #9d8a50;
+      }
+      .free-note-resizer {
+        position: absolute;
+        right: 3px;
+        bottom: 3px;
+        width: 15px;
+        height: 15px;
+        border-right: 2px solid rgba(142, 111, 27, 0.72);
+        border-bottom: 2px solid rgba(142, 111, 27, 0.72);
+        border-radius: 0 0 5px;
+        opacity: 0;
+        visibility: hidden;
+        cursor: nwse-resize;
+        pointer-events: none;
+        touch-action: none;
+        transition:
+          opacity 0.16s ease,
+          visibility 0.16s ease;
+      }
+      .free-map-note:hover .free-note-resizer,
+      .free-map-note.is-resizing .free-note-resizer {
+        opacity: 0.9;
+        visibility: visible;
+        pointer-events: auto;
+      }
+      .free-map-note.is-dragging,
+      .free-map-note.is-dragging .free-note-grip {
+        cursor: grabbing;
+      }
+    .map-note-control {
+      white-space: nowrap;
+    }
+      .is-adding-map-note #map {
+        cursor: crosshair;
+      }
+      .guide-export-sheet {
+        position: absolute;
+        left: -100000px;
+        top: 0;
+        z-index: -1;
+        width: max-content;
+        min-width: 1280px;
+        padding: 30px;
+        color: var(--ink);
+        background: #edf4ef;
+        font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      }
+      .guide-export-header {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 22px;
+        padding: 22px 26px;
+        border: 1px solid #d4e5db;
+        border-radius: 18px;
+        background: linear-gradient(120deg, #fffdf8, #f3fbf6);
+        box-shadow: 0 10px 26px rgba(22, 55, 48, 0.09);
+      }
+      .guide-export-title {
+        margin: 0;
+        color: var(--ink);
+        font-family: "Songti SC", "STSong", serif;
+        font-size: 30px;
+        letter-spacing: 0.08em;
+      }
+      .guide-export-subtitle,
+      .guide-export-time {
+        margin: 7px 0 0;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .guide-export-time {
+        margin: 0;
+        white-space: nowrap;
+        text-align: right;
+      }
+      .guide-export-content {
+        display: grid;
+        grid-template-columns: auto 390px;
+        align-items: start;
+        gap: 22px;
+      }
+      .guide-export-map-frame,
+      .guide-export-itinerary {
+        border: 1px solid #d4e5db;
+        border-radius: 18px;
+        background: #fffdf8;
+        box-shadow: 0 10px 26px rgba(22, 55, 48, 0.09);
+      }
+      .guide-export-map-frame {
+        overflow: hidden;
+      }
+      .guide-export-map {
+        position: relative;
+        display: block;
+        overflow: hidden;
+      }
+      .guide-export-itinerary {
+        min-height: 100%;
+        padding: 20px;
+      }
+      .guide-export-itinerary h2 {
+        margin: 0 0 14px;
+        color: var(--ink-soft);
+        font-size: 18px;
+      }
+      .guide-export-itinerary .trip-title,
+      .guide-export-itinerary .day-title,
+      .guide-export-itinerary .transport-select,
+      .guide-export-itinerary .custom-transport {
+        pointer-events: none;
+      }
+      .guide-export-itinerary button {
+        pointer-events: none;
+      }
+      .guide-export-footer {
+        margin-top: 18px;
+        color: var(--muted);
+        font-size: 11px;
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">⌁</div>
+          <div>
+            <h1>我的旅程</h1>
+            <span class="draft-label" id="draftLabel">未命名 · 未保存</span>
+          </div>
+        </div>
+        <div class="top-actions">
+          <button class="button map-note-control" id="addMapNote" type="button">＋ 添加便签</button>
+          <button class="button" id="exportImage" type="button">导出图片</button>
+          <label class="layer-switch" for="layerMode"
+            ><span>图层</span
+            ><select class="layer-select" id="layerMode">
+              <option value="all">第一层 · 全部</option>
+              <option value="subdued">第二层 · 淡化地图</option>
+              <option value="map">第三层 · 只有地图</option>
+              <option value="annotations">第四层 · 只有标注</option>
+              <option value="navigation">第五层 · 高德驾车导航</option>
+            </select></label
+          ><button class="button" id="fitMap" type="button">查看全部</button
+          ><button class="button" id="openDrafts" type="button">打开草稿</button
+          ><button class="button primary" id="savePlan" type="button">
+            保存草稿
+          </button>
+        </div>
+      </header>
+      <input
+        class="panel-state"
+        id="searchPanelState"
+        type="checkbox"
+        aria-label="切换搜索栏显示状态"
+      />
+      <input
+        class="panel-state"
+        id="sidebarPanelState"
+        type="checkbox"
+        aria-label="切换行程目录显示状态"
+      />
+      <section id="map" aria-label="旅行地点真实地图"></section>
+      <form class="panel add-panel" id="addForm">
+        <div class="panel-title">
+          <h2>添加地点</h2>
+          <label
+            class="panel-toggle"
+            id="toggleSearch"
+            for="searchPanelState"
+            role="button"
+            tabindex="0"
+            aria-label="隐藏搜索栏"
+            title="收起搜索栏"
+            >◀ 收起</label
+          >
+        </div>
+        <div class="field">
+          <label for="placeName">搜索或输入地点</label>
+          <div class="search-row">
+            <input
+              id="placeName"
+              class="control"
+              maxlength="50"
+              placeholder="例如：故宫博物院"
+              autocomplete="off"
+            /><button
+              class="search-button"
+              id="searchPlaces"
+              type="button"
+              aria-label="搜索地点"
+            >
+              ⌕
+            </button>
+          </div>
+          <div
+            class="search-results"
+            id="searchResults"
+            aria-live="polite"
+          ></div>
+        </div>
+        <div class="field">
+          <label for="placeType">地点类型</label
+          ><select id="placeType" class="control">
+            <option value="airport">✈ 机场</option>
+            <option value="station">▣ 车站</option>
+            <option value="hotel">⌂ 酒店</option>
+            <option value="spot" selected>◆ 景点</option>
+            <option value="food">● 餐饮</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="placeDay">归入行程</label
+          ><select id="placeDay" class="control"></select>
+        </div>
+        <button class="button primary" id="startAdd" type="submit">
+          在地图上标记
+        </button>
+      </form>
+      <aside class="panel detail-panel" id="detailPanel" hidden>
+        <div class="panel-title">
+          <div class="detail-type">
+            <i class="type-dot" id="detailDot"></i
+            ><select class="detail-type-select" id="detailTypeInput" aria-label="修改地点类型">
+              <option value="airport">✈ 机场</option>
+              <option value="station">▣ 车站</option>
+              <option value="hotel">⌂ 酒店</option>
+              <option value="spot">◆ 景点</option>
+              <option value="food">● 餐饮</option>
+            </select>
+          </div>
+          <button class="close" id="closeDetail" type="button">×</button>
+        </div>
+        <h2 class="detail-name" id="detailName">地点名称</h2>
+        <textarea
+          class="note-input"
+          id="placeNote"
+          maxlength="120"
+          placeholder="便签，例如：08:35 抵达 / 14:10 高铁出发"
+        ></textarea>
+        <div class="order-controls">
+          <button class="small-button" id="moveEarlier" type="button">
+            ← 提前一站</button
+          ><button class="small-button" id="moveLater" type="button">
+            延后一站 →
+          </button>
+        </div>
+        <button class="delete" id="deletePlace" type="button">
+          删除此地点
+        </button>
+      </aside>
+      <aside class="panel itinerary-sidebar" aria-label="行程目录管理">
+        <p class="sidebar-heading">
+          分层目录
+          <span
+            ><button class="side-action" id="addTrip" type="button">
+              + 添加行程标题</button
+            ><label
+              class="panel-toggle"
+              id="toggleSidebar"
+              for="sidebarPanelState"
+              role="button"
+              tabindex="0"
+              aria-label="隐藏分层目录"
+              title="收起行程目录"
+              >收起 ▶</label
+            ></span
+          >
+        </p>
+        <div id="tripGroups"></div>
+        <button class="button primary" id="calculateNavigation" type="button">
+          计算导航
+        </button>
+        <div class="backup-row">
+          <button class="button" id="exportDrafts" type="button">
+            导出草稿</button
+          ><button class="button" id="importDrafts" type="button">
+            导入草稿</button
+          ><input
+            id="importFile"
+            type="file"
+            accept=".json,application/json"
+            hidden
+          />
+        </div>
+        <p class="storage-status" id="storageStatus">正在检测数据存储位置…</p>
+      </aside>
+      <p class="navigation-note" id="navigationNote" hidden>
+        正在生成高德驾车导航线路…
+      </p>
+      <aside class="route-options-panel" id="routeOptionsPanel" hidden aria-label="逐段路线方案">
+        <div class="route-options-heading">
+          <div>
+            <strong>逐段路线方案</strong>
+            <span>每两个相邻地点可单独选择路线</span>
+          </div>
+          <button class="route-options-close" id="collapseRouteOptions" type="button">收起</button>
+        </div>
+        <div class="route-options-list" id="routeOptionsList"></div>
+      </aside>
+      <button class="route-options-reopen" id="showRouteOptions" type="button" hidden>路线方案</button>
+      <label
+        class="edge-reopen reopen-search"
+        id="showSearch"
+        for="searchPanelState"
+        role="button"
+        tabindex="0"
+        hidden
+        >展开搜索</label
+      ><label
+        class="edge-reopen reopen-sidebar"
+        id="showSidebar"
+        for="sidebarPanelState"
+        role="button"
+        tabindex="0"
+        hidden
+        >展开目录</label
+      >
+    </main>
+    <div class="modal-mask" id="saveModal" hidden>
+      <div class="modal">
+        <h3>保存草稿</h3>
+        <input
+          id="draftName"
+          class="control"
+          maxlength="30"
+          placeholder="输入草稿名称（同名会覆盖）"
+        />
+        <div class="modal-actions">
+          <button class="button" id="cancelSave" type="button">取消</button
+          ><button class="button primary" id="confirmSave" type="button">
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="modal-mask" id="draftsModal" hidden>
+      <div class="modal">
+        <h3>打开草稿</h3>
+        <div class="draft-list" id="draftList"></div>
+        <div class="modal-actions">
+          <button class="button" id="closeDrafts" type="button">关闭</button>
+        </div>
+      </div>
+    </div>
+    <script
+      src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+      integrity="sha512-BwHfrr4c9kmRkLw6iXFdzcdWV/PGkVgiIyIWLLlTSXzWQzxuSg4DiQUCpauz/EWjgk5TYQqX/kvn9pG1NpYfqg=="
+      crossorigin=""
+    ></script>
+    <script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js" crossorigin="anonymous"></script>
+    <script>
+      const map = L.map("map", {
+        zoomControl: true,
+        minZoom: 3,
+        keepBuffer: 5,
+        updateWhenIdle: true,
+        updateWhenZooming: false,
+        fadeAnimation: false,
+      }).setView([39.9042, 116.4074], 12);
+      const baseLayer = L.tileLayer(
+        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+        {
+          maxZoom: 19,
+          crossOrigin: true,
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        },
+      ).addTo(map);
+      const typeNames = {
+          airport: "机场",
+          station: "车站",
+          hotel: "酒店",
+          spot: "景点",
+          food: "餐饮",
+        },
+        typeIcons = {
+          airport: "\u2708",
+          station: "\u25a3",
+          hotel: "\u2302",
+          spot: "\u25c6",
+          food: "\u25cf",
+        },
+        typeColors = {
+          airport: "#7259d8",
+          station: "#1e78c7",
+          hotel: "#d2693b",
+          spot: "#159a79",
+          food: "#bd4b75",
+        };
+      const amapKey = "979bae09e719b413c1299577acb756cf",
+        storageKey = "travel-map-v5-state",
+        draftsKey = "travel-map-drafts-v1",
+        workspaceKey = "travel-map-workspace-v1",
+        remoteBase = "http://127.0.0.1:8345";
+      let trips = [
+        {
+          id: 1,
+          title: "北京三日游",
+          visible: true,
+          days: [
+            { id: 11, name: "第一天", visible: true },
+            { id: 12, name: "第二天", visible: true },
+            { id: 13, name: "第三天", visible: true },
+          ],
+        },
+      ];
+      let places = [
+        {
+          id: 1,
+          name: "北京首都国际机场",
+          type: "airport",
+          tripId: 1,
+          dayId: 11,
+          lat: 40.0799,
+          lng: 116.6031,
+        },
+        {
+          id: 2,
+          name: "前门酒店",
+          type: "hotel",
+          tripId: 1,
+          dayId: 11,
+          lat: 39.8972,
+          lng: 116.3972,
+        },
+        {
+          id: 3,
+          name: "故宫博物院",
+          type: "spot",
+          tripId: 1,
+          dayId: 11,
+          lat: 39.9163,
+          lng: 116.3972,
+        },
+        {
+          id: 4,
+          name: "南锣鼓巷",
+          type: "food",
+          tripId: 1,
+          dayId: 12,
+          lat: 39.9389,
+          lng: 116.4037,
+        },
+        {
+          id: 5,
+          name: "颐和园",
+          type: "spot",
+          tripId: 1,
+          dayId: 12,
+          lat: 39.9998,
+          lng: 116.2755,
+        },
+        {
+          id: 6,
+          name: "北京南站",
+          type: "station",
+          tripId: 1,
+          dayId: 13,
+          lat: 39.8651,
+          lng: 116.3792,
+        },
+      ];
+      let segmentModes = {},
+        mapNotes = [],
+        segmentRouteChoices = {},
+        routeOptionsCollapsed = false,
+        collapsedTrips = new Set(),
+        collapsedDays = new Set();
+      let draftsStore = loadDraftsStore(),
+        drafts = draftsStore.drafts,
+        activeDraftId = draftsStore.activeDraftId || null,
+        lastSavedJson = "";
+      const draftNow = drafts.find((d) => d.id === activeDraftId && d.data),
+        wsNow = loadWorkspace();
+      if (
+        draftNow &&
+        wsNow &&
+        JSON.stringify(wsNow.data) !== JSON.stringify(draftNow.data)
+      ) {
+        applyState(wsNow.data);
+      } else if (draftNow) {
+        applyState(draftNow.data);
+      } else if (wsNow) {
+        applyState(wsNow.data);
+      } else {
+        let legacyLoaded = false;
+        try {
+          const saved = JSON.parse(
+            localStorage.getItem(storageKey) ||
+              localStorage.getItem("travel-map-v4-state") ||
+              localStorage.getItem("travel-map-v3-state"),
+          );
+          if (saved?.trips && saved?.places) {
+            trips = saved.trips;
+            places = saved.places;
+            segmentModes = saved.segmentModes || {};
+            legacyLoaded = true;
+          } else if (saved?.itinerary && saved?.places) {
+            const old = saved.itinerary;
+            trips = [
+              {
+                id: 1,
+                title: old.title || "北京三日游",
+                visible: old.visible !== false,
+                days: (old.days || []).map((d, i) => ({
+                  id: d.id || i + 1,
+                  name: d.name || `第${i + 1}天`,
+                  visible: d.visible !== false,
+                })),
+              },
+            ];
+            places = saved.places.map((p) => ({
+              ...p,
+              tripId: 1,
+              dayId: p.day || trips[0].days[0].id,
+            }));
+            legacyLoaded = true;
+          }
+        } catch (_) {}
+        if (legacyLoaded && !drafts.length) {
+          drafts.push({
+            id: uniqueId(),
+            name: trips[0]?.title || "我的草稿",
+            savedAt: Date.now(),
+            data: cloneState(),
+          });
+          activeDraftId = drafts[0].id;
+          persistDrafts();
+        }
+      }
+      function normalize() {
+        trips =
+          Array.isArray(trips) && trips.length
+            ? trips
+            : [
+                {
+                  id: Date.now(),
+                  title: "未命名行程",
+                  visible: true,
+                  days: [],
+                },
+              ];
+        trips = trips.map((t, i) => ({
+          id: t.id || Date.now() + i,
+          title: t.title || "未命名行程",
+          visible: t.visible !== false,
+          days:
+            Array.isArray(t.days) && t.days.length
+              ? t.days.map((d, j) => ({
+                  id: d.id || Date.now() + j,
+                  name: d.name || `第${j + 1}天`,
+                  visible: d.visible !== false,
+                }))
+              : [{ id: Date.now() + i + 1, name: "第一天", visible: true }],
+        }));
+        places = places.map((p) => {
+          const t = trips.find((t) => t.id === p.tripId) || trips[0],
+            d = t.days.find((d) => d.id === p.dayId) || t.days[0];
+          return { ...p, tripId: t.id, dayId: d.id };
+        });
+        mapNotes = Array.isArray(mapNotes)
+          ? mapNotes
+              .filter((n) => Number.isFinite(+n.lat) && Number.isFinite(+n.lng))
+              .map((n) => ({
+                id: n.id || uniqueId(),
+                lat: +n.lat,
+                lng: +n.lng,
+                text: String(n.text || "点击编辑这张便签"),
+                scale: Math.max(0.6, Math.min(2.4, Number(n.scale) || 1)),
+              }))
+          : [];
+        segmentRouteChoices = Object.fromEntries(
+          Object.entries(segmentRouteChoices || {}).filter(([, choice]) =>
+            [1, 2].includes(Number(choice)),
+          ),
+        );
+      }
+      normalize();
+      let markers = [],
+        mapNoteMarkers = [],
+        routeHalo,
+        routePath,
+        distanceLabels = [],
+        navigationLayers = [],
+        navigationLabels = [],
+        selectedId = null,
+        adding = false,
+        addingMapNote = false,
+        currentLayer = "all",
+        selectedSearchPoi = null,
+        searchController = null,
+        navigationController = null,
+        draggedId = null;
+      const $ = (id) => document.getElementById(id),
+        detail = $("detailPanel"),
+        form = $("addForm"),
+        nameInput = $("placeName"),
+        typeInput = $("placeType"),
+        detailTypeInput = $("detailTypeInput"),
+        dayInput = $("placeDay"),
+        addButton = $("startAdd"),
+        searchButton = $("searchPlaces"),
+        searchResults = $("searchResults"),
+        noteInput = $("placeNote");
+      const esc = (v) => {
+          const e = document.createElement("div");
+          e.textContent = v;
+          return e.innerHTML;
+        },
+        tripFor = (p) => trips.find((t) => t.id === p.tripId),
+        dayFor = (p) => tripFor(p)?.days.find((d) => d.id === p.dayId),
+        visible = (p) => tripFor(p)?.visible && dayFor(p)?.visible,
+        segmentKey = (a, b) => `${a.id}->${b.id}`;
+      function orderedPlaces(includeHidden = true) {
+        return trips.flatMap((t) =>
+          t.days.flatMap((d) =>
+            places
+              .filter((p) => p.tripId === t.id && p.dayId === d.id)
+              .filter((p) => includeHidden || visible(p)),
+          ),
+        );
+      }
+      function poiType(p) {
+        const s = String(p.type || "") + String(p.name || "");
+        return /机场|飞机场/.test(s)
+          ? "airport"
+          : /火车站|长途汽车|地铁站|铁路/.test(s)
+            ? "station"
+            : /宾馆|酒店|旅馆|住宿/.test(s)
+              ? "hotel"
+              : /餐饮|美食|咖啡|茶艺/.test(s)
+                ? "food"
+                : "spot";
+      }
+      function markerIcon(p, i) {
+        const offset = p.noteOffset || { x: 0, y: 0 },
+          note = p.note?.trim()
+            ? `<span class="pin-note" data-note-place="${p.id}" style="--note-x:${Number(offset.x) || 0}px;--note-y:${Number(offset.y) || 0}px">${esc(p.note)}</span>`
+            : "";
+        return L.divIcon({
+          className: "",
+          iconSize: [36, 64],
+          iconAnchor: [17, 40],
+          html: `<div class="map-pin${p.id === selectedId ? " marker-selected" : ""}" style="--pin:${typeColors[p.type]}"><div class="pin-shape"><span>${typeIcons[p.type]}</span></div><b class="pin-order">${i + 1}</b><span class="pin-label">${esc(p.name)}</span>${note}</div>`,
+        });
+      }
+      function placeOptions() {
+        return trips
+          .flatMap((t) =>
+            t.days.map(
+              (d) =>
+                `<option value="${t.id}:${d.id}">${esc(t.title)} · ${esc(d.name)}</option>`,
+            ),
+          )
+          .join("");
+      }
+      function updateAddDays() {
+        const current = dayInput.value;
+        dayInput.innerHTML = placeOptions();
+        if ([...dayInput.options].some((o) => o.value === current))
+          dayInput.value = current;
+      }
+      function routeDistance(a, b) {
+        const r = Math.PI / 180,
+          R = 6371,
+          lat1 = a.lat * r,
+          lat2 = b.lat * r,
+          dLat = (b.lat - a.lat) * r,
+          dLng = (b.lng - a.lng) * r;
+        const h =
+          Math.sin(dLat / 2) ** 2 +
+          Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+        return 2 * R * Math.asin(Math.sqrt(h));
+      }
+      function renderRoute() {
+        if (routeHalo) map.removeLayer(routeHalo);
+        if (routePath) map.removeLayer(routePath);
+        distanceLabels.forEach((x) => map.removeLayer(x));
+        distanceLabels = [];
+        const shown = orderedPlaces(false);
+        if (shown.length > 1) {
+          const path = shown.map((p) => [p.lat, p.lng]);
+          routeHalo = L.polyline(path, {
+            className: "route-halo",
+            interactive: false,
+          }).addTo(map);
+          routePath = L.polyline(path, {
+            className: "route-path",
+            interactive: false,
+          }).addTo(map);
+          shown.slice(0, -1).forEach((p, i) => {
+            const n = shown[i + 1],
+              mid = [(p.lat + n.lat) / 2, (p.lng + n.lng) / 2],
+              km = routeDistance(p, n),
+              text =
+                km < 1
+                  ? `${Math.round(km * 1000)} m`
+                  : `${km.toFixed(km < 10 ? 1 : 0)} km`;
+            distanceLabels.push(
+              L.marker(mid, {
+                interactive: false,
+                icon: L.divIcon({
+                  className: "",
+                  iconAnchor: [0, 0],
+                  html: `<span class="distance-label">直线 ${text}</span>`,
+                }),
+              }).addTo(map),
+            );
+          });
+        }
+      }
+      function outOfChina(lat, lng) {
+        return lng < 72.004 || lng > 137.8347 || lat < 0.8293 || lat > 55.8271;
+      }
+      function transformLat(x, y) {
+        let r =
+          -100 +
+          2 * x +
+          3 * y +
+          0.2 * y * y +
+          0.1 * x * y +
+          0.2 * Math.sqrt(Math.abs(x));
+        r +=
+          ((20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) *
+            2) /
+          3;
+        r +=
+          ((20 * Math.sin(y * Math.PI) + 40 * Math.sin((y / 3) * Math.PI)) *
+            2) /
+          3;
+        return (
+          r +
+          ((160 * Math.sin((y / 12) * Math.PI) +
+            320 * Math.sin((y * Math.PI) / 30)) *
+            2) /
+            3
+        );
+      }
+      function transformLng(x, y) {
+        let r =
+          300 +
+          x +
+          2 * y +
+          0.1 * x * x +
+          0.1 * x * y +
+          0.1 * Math.sqrt(Math.abs(x));
+        r +=
+          ((20 * Math.sin(6 * x * Math.PI) + 20 * Math.sin(2 * x * Math.PI)) *
+            2) /
+          3;
+        r +=
+          ((20 * Math.sin(x * Math.PI) + 40 * Math.sin((x / 3) * Math.PI)) *
+            2) /
+          3;
+        return (
+          r +
+          ((150 * Math.sin((x / 12) * Math.PI) +
+            300 * Math.sin((x / 30) * Math.PI)) *
+            2) /
+            3
+        );
+      }
+      function wgsToGcj(lat, lng) {
+        if (outOfChina(lat, lng)) return [lat, lng];
+        const a = 6378245,
+          ee = 0.00669342162296594323,
+          dLat = transformLat(lng - 105, lat - 35),
+          dLng = transformLng(lng - 105, lat - 35),
+          rad = (lat / 180) * Math.PI,
+          magic = 1 - ee * Math.sin(rad) ** 2,
+          sqrt = Math.sqrt(magic);
+        return [
+          lat + (dLat * 180) / (((a * (1 - ee)) / (magic * sqrt)) * Math.PI),
+          lng + (dLng * 180) / ((a / sqrt) * Math.cos(rad) * Math.PI),
+        ];
+      }
+      function gcjToWgs(lat, lng) {
+        if (outOfChina(lat, lng)) return [lat, lng];
+        let wLat = lat,
+          wLng = lng;
+        for (let i = 0; i < 2; i++) {
+          const [gLat, gLng] = wgsToGcj(wLat, wLng);
+          wLat -= gLat - lat;
+          wLng -= gLng - lng;
+        }
+        return [wLat, wLng];
+      }
+      function navigationSegments(includeHidden = false) {
+        const days = trips.flatMap((trip) =>
+          trip.days
+            .filter((day) => includeHidden || (trip.visible && day.visible))
+            .map((day) => ({
+              trip,
+              day,
+              places: places.filter(
+                (place) =>
+                  place.tripId === trip.id &&
+                  place.dayId === day.id &&
+                  (includeHidden || visible(place)),
+              ),
+            }))
+            .filter((entry) => entry.places.length),
+        );
+        return days.flatMap((entry, dayIndex) => {
+          const withinDay = entry.places
+              .slice(0, -1)
+              .map((from, index) => ({
+                from,
+                to: entry.places[index + 1],
+              })),
+            nextDayStart = days[dayIndex + 1]?.places[0],
+            endToNextDay =
+              nextDayStart && entry.places.at(-1)
+                ? [{ from: entry.places.at(-1), to: nextDayStart }]
+                : [];
+          return [...withinDay, ...endToNextDay];
+        });
+      }
+      function visibleSegments() {
+        return navigationSegments(false);
+      }
+      const navigationDayPalette = [
+        "#1687c5",
+        "#e58a2d",
+        "#7656c8",
+        "#c9577a",
+        "#4e9a62",
+        "#4e6bc6",
+      ];
+      const navigationRouteChoices = {
+        1: { label: "高速优先", strategy: "34" },
+        2: { label: "不走高速", strategy: "35" },
+      };
+      function navigationDayInfo(tripId, dayId) {
+        const days = trips.flatMap((trip) =>
+            trip.days.map((day) => ({ trip, day })),
+          ),
+          index = Math.max(
+            0,
+            days.findIndex(
+              ({ trip, day }) => trip.id === tripId && day.id === dayId,
+            ),
+          );
+        return {
+          index,
+          label: `第 ${index + 1} 天`,
+          color: navigationDayPalette[index % navigationDayPalette.length],
+        };
+      }
+      function navigationSegmentChoice(from, to) {
+        const choice = Number(segmentRouteChoices[segmentKey(from, to)] || 1);
+        return navigationRouteChoices[choice] ? choice : 1;
+      }
+      function clearNavigation() {
+        navigationController?.abort();
+        navigationLayers.forEach((x) => map.removeLayer(x));
+        navigationLabels.forEach((x) => map.removeLayer(x));
+        navigationLayers = [];
+        navigationLabels = [];
+        $("navigationNote").hidden = true;
+      }
+      const transportMeta = {
+        driving: { label: "驾车", path: "driving" },
+        walking: { label: "步行", path: "walking" },
+        transit: { label: "公共交通", path: "transit/integrated" },
+        bicycling: { label: "骑行", path: "bicycling" },
+        custom: { label: "自定义", path: null },
+      };
+      function routeOptionPanelRow({ from, to }) {
+        const setting = segmentModes[segmentKey(from, to)] || { mode: "driving" },
+          mode =
+            typeof setting === "string" ? setting : setting.mode || "driving",
+          title = `${from.name} → ${to.name}`;
+        if (mode !== "driving")
+          return `<div class="route-option-row"><span class="route-option-title">${esc(title)}</span><span class="route-option-unavailable">当前为${esc(transportMeta[mode]?.label || "其他方式")}；驾车时可选择路线方案</span></div>`;
+        const key = segmentKey(from, to),
+          selected = navigationSegmentChoice(from, to);
+        return `<div class="route-option-row"><span class="route-option-title">${esc(title)}</span><div class="route-option-choices">${Object.entries(navigationRouteChoices).map(([id, option]) => `<button class="route-choice-button${Number(id) === selected ? " is-selected" : ""}" data-route-choice-key="${key}" data-route-choice="${id}" type="button">${esc(option.label)}</button>`).join("")}</div></div>`;
+      }
+      function renderRouteOptionsPanel() {
+        const panel = $("routeOptionsPanel"),
+          reopen = $("showRouteOptions"),
+          list = $("routeOptionsList"),
+          visible = currentLayer === "navigation";
+        panel.hidden = !visible || routeOptionsCollapsed;
+        reopen.hidden = !visible || !routeOptionsCollapsed;
+        if (!visible || routeOptionsCollapsed) return;
+        const segments = visibleSegments();
+        list.innerHTML = segments.length
+          ? segments.map(routeOptionPanelRow).join("")
+          : '<span class="route-option-unavailable">至少添加两个地点后，才可选择逐段路线。</span>';
+        list.querySelectorAll("[data-route-choice]").forEach((button) =>
+          button.addEventListener("click", () => {
+            segmentRouteChoices[button.dataset.routeChoiceKey] = Number(
+              button.dataset.routeChoice,
+            );
+            scheduleWorkspaceSave();
+            renderRouteOptionsPanel();
+            renderNavigation();
+          }),
+        );
+      }
+      function drivePath(points, mode = "driving", routeChoice = 1) {
+        const c = points.map((p) => wgsToGcj(p.lat, p.lng)),
+          origin = `${c[0][1]},${c[0][0]}`,
+          destination = `${c.at(-1)[1]},${c.at(-1)[0]}`,
+          meta = transportMeta[mode] || transportMeta.driving,
+          q = new URLSearchParams({
+            key: amapKey,
+            origin,
+            destination,
+            show_fields: "cost,polyline",
+          });
+        if (mode === "driving")
+          q.set(
+            "strategy",
+            navigationRouteChoices[routeChoice]?.strategy || "34",
+          );
+        if (mode === "transit") {
+          q.set("city1", "010");
+          q.set("city2", "010");
+        }
+        return `https://restapi.amap.com/v5/direction/${meta.path}?${q}`;
+      }
+      function formatDriveTime(seconds) {
+        const minutes = Math.round(Number(seconds || 0) / 60);
+        return minutes >= 60
+          ? `${(minutes / 60).toFixed(1)} h`
+          : `${Math.max(1, minutes)} 分钟`;
+      }
+      function polylineCoords(path) {
+        return path.steps
+          .flatMap((s) => String(s.polyline || "").split(";"))
+          .map((x) => x.split(",").map(Number))
+          .filter((x) => Number.isFinite(x[0]) && Number.isFinite(x[1]))
+          .map(([lng, lat]) => gcjToWgs(lat, lng));
+      }
+      function navigationBatches(segments, maxPoints = 6) {
+        const maxSegments = Math.max(1, maxPoints - 1),
+          batches = [];
+        for (let i = 0; i < segments.length; i += maxSegments)
+          batches.push(segments.slice(i, i + maxSegments));
+        return batches;
+      }
+      const navigationPause = (ms) =>
+        new Promise((resolve) => setTimeout(resolve, ms));
+      async function calculateNavigationSegment(segment) {
+        const { from, to } = segment;
+        const setting = segmentModes[segmentKey(from, to)] || {
+            mode: "driving",
+          },
+          mode =
+            typeof setting === "string" ? setting : setting.mode || "driving";
+        const routeChoice = navigationSegmentChoice(from, to);
+        if (mode === "custom")
+          return {
+            ...segment,
+            from,
+            to,
+            mode,
+            routeChoice,
+            custom:
+              typeof setting === "object"
+                ? setting.text || "自定义出行"
+                : "自定义出行",
+          };
+        const r = await fetch(drivePath([from, to], mode, routeChoice), {
+            signal: navigationController.signal,
+          }),
+          data = await r.json();
+        if (!r.ok || data.status !== "1")
+          throw new Error(
+            `${transportMeta[mode].label}：${data.info || "服务不可用"}`,
+          );
+        const path = data.route?.paths?.[0];
+        if (!path)
+          throw new Error(`${transportMeta[mode].label}：未找到可用路线`);
+        return {
+          ...segment,
+          from,
+          to,
+          path,
+          coords: polylineCoords(path),
+          mode,
+          routeChoice,
+        };
+      }
+      function drawNavigationResult({
+        from,
+        to,
+        path,
+        coords,
+        mode,
+        custom,
+      }) {
+        const day = navigationDayInfo(from.tripId, from.dayId),
+          color = day.color;
+        if (mode === "custom") {
+          const line = [
+              [from.lat, from.lng],
+              [to.lat, to.lng],
+            ],
+            mid = [(from.lat + to.lat) / 2, (from.lng + to.lng) / 2];
+          navigationLayers.push(
+            L.polyline(line, {
+              color,
+              weight: 3.5,
+              opacity: 0.9,
+              interactive: false,
+            }).addTo(map),
+          );
+          navigationLabels.push(
+            L.marker(mid, {
+              interactive: false,
+              icon: L.divIcon({
+                className: "",
+                iconAnchor: [0, 0],
+                html: `<span class="distance-label navigation-label">${esc(custom)}</span>`,
+              }),
+            }).addTo(map),
+          );
+          return;
+        }
+        if (coords.length < 2) return;
+        navigationLayers.push(
+          L.polyline(coords, {
+            className: "navigation-halo",
+            color: "#fff",
+            weight: 9,
+            opacity: 0.84,
+            interactive: false,
+          }).addTo(map),
+          L.polyline(coords, {
+            className: "navigation-path",
+            color,
+            interactive: false,
+          }).addTo(map),
+        );
+        const km = Number(path.distance) / 1000,
+          mid = coords[Math.floor(coords.length / 2)],
+          distance =
+            km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`,
+          label = `${transportMeta[mode].label} ${distance} · 约 ${formatDriveTime(path.cost?.duration)}`;
+        navigationLabels.push(
+          L.marker(mid, {
+            interactive: false,
+            icon: L.divIcon({
+              className: "",
+              iconAnchor: [0, 0],
+                html: `<span class="distance-label navigation-label">${label}</span>`,
+            }),
+          }).addTo(map),
+        );
+      }
+      async function renderNavigation() {
+        clearNavigation();
+        const segments = visibleSegments();
+        if (!segments.length) {
+          $("navigationNote").textContent =
+            "至少需要两个按目录顺序排列的可见地点才能生成导航线路。";
+          $("navigationNote").hidden = false;
+          return;
+        }
+        const batches = navigationBatches(segments);
+        $("navigationNote").textContent =
+          `正在分 ${batches.length} 批生成导航（每批最多 6 个地点）…`;
+        $("navigationNote").hidden = false;
+        navigationController = new AbortController();
+        try {
+          const results = [],
+            failures = [];
+          for (let i = 0; i < batches.length; i++) {
+            const batch = batches[i];
+            $("navigationNote").textContent =
+              `正在计算第 ${i + 1}/${batches.length} 批（${batch.length + 1} 个地点）…`;
+            for (const segment of batch) {
+              try {
+                results.push(await calculateNavigationSegment(segment));
+              } catch (e) {
+                if (e.name === "AbortError") throw e;
+                failures.push({ segment, message: e.message });
+              }
+              if (!navigationController.signal.aborted)
+                await navigationPause(180);
+            }
+          }
+          if (!results.length)
+            throw new Error(failures[0]?.message || "未找到可用路线");
+          results.forEach(drawNavigationResult);
+          renderRouteOptionsPanel();
+          $("navigationNote").textContent =
+            `导航 · 已生成 ${results.length}/${segments.length} 段路线${failures.length ? `，${failures.length} 段未生成` : ""}`;
+          setTimeout(
+            () => {
+              $("navigationNote").hidden = true;
+            },
+            failures.length ? 5200 : 2600,
+          );
+        } catch (e) {
+          if (e.name === "AbortError") return;
+          $("navigationNote").textContent = `导航未生成：${e.message}`;
+        }
+      }
+      function transportOptions(mode) {
+        return Object.entries(transportMeta)
+          .map(
+            ([id, m]) =>
+              `<option value="${id}"${id === mode ? " selected" : ""}>${m.label}</option>`,
+          )
+          .join("");
+      }
+      function segmentEditor(from, to) {
+        const setting = segmentModes[segmentKey(from, to)] || {
+            mode: "driving",
+          },
+          mode =
+            typeof setting === "string" ? setting : setting.mode || "driving",
+          text = typeof setting === "object" ? setting.text || "" : "";
+        return `<div class="segment-editor" title="设置从${esc(from.name)}到${esc(to.name)}的方式"><select class="transport-select" data-segment="${from.id}:${to.id}" aria-label="${esc(from.name)}到${esc(to.name)}的出行方式">${transportOptions(mode)}</select>${mode === "custom" ? `<input class="custom-transport" data-custom-segment="${from.id}:${to.id}" maxlength="30" value="${esc(text)}" placeholder="如：坐飞机 3 h" />` : ""}</div>`;
+      }
+      function renderSidebar() {
+        const root = $("tripGroups"),
+          all = orderedPlaces();
+        root.innerHTML = trips
+          .map(
+            (t) => {
+              const tripCollapsed = collapsedTrips.has(t.id);
+              return `<section class="trip-group" data-trip="${t.id}"><div class="trip-row"><button class="collapse-toggle" data-collapse-trip="${t.id}" aria-expanded="${!tripCollapsed}" aria-label="${tripCollapsed ? "展开" : "收起"}行程" title="${tripCollapsed ? "展开" : "收起"}行程" type="button">${tripCollapsed ? "▸" : "▾"}</button><button class="visibility-button${t.visible ? "" : " is-hidden"}" data-toggle-trip="${t.id}" type="button">${t.visible ? "◉" : "○"}</button><input class="trip-title" data-trip-title="${t.id}" value="${esc(t.title)}" maxlength="30" /><button class="mini-button" data-delete-trip="${t.id}" title="删除行程标题" type="button">×</button></div><div class="days${tripCollapsed ? " is-collapsed" : ""}">${t.days
+                .map((d) => {
+                  const dayKey = `${t.id}:${d.id}`,
+                    dayCollapsed = collapsedDays.has(dayKey);
+                  const ps = places.filter(
+                    (p) => p.tripId === t.id && p.dayId === d.id,
+                  );
+                  const list = ps.length
+                    ? ps
+                        .map((p, i) => {
+                          const next = ps[i + 1],
+                            note = p.note?.trim()
+                              ? `<span class="place-note">${esc(p.note)}</span>`
+                              : "",
+                            row = `<button class="place-row${p.id === selectedId ? " is-selected" : ""}" draggable="true" data-place="${p.id}" type="button"><i class="place-dot" style="background:${typeColors[p.type]}"></i><span class="place-name">${esc(p.name)}</span><span class="place-order">${all.indexOf(p) + 1}</span></button>${note}`;
+                          return next ? `${row}${segmentEditor(p, next)}` : row;
+                        })
+                        .join("")
+                    : '<span class="search-status">暂无地点</span>';
+                  const last = ps.at(-1),
+                    next = last ? all[all.indexOf(last) + 1] : null,
+                    endToNext =
+                      last &&
+                      next &&
+                      (next.tripId !== t.id || next.dayId !== d.id)
+                        ? segmentEditor(last, next)
+                        : "";
+                  return `<div class="day-group" data-trip="${t.id}" data-day="${d.id}"><div class="day-row"><button class="collapse-toggle" data-collapse-day="${dayKey}" aria-expanded="${!dayCollapsed}" aria-label="${dayCollapsed ? "展开" : "收起"}${esc(d.name)}" title="${dayCollapsed ? "展开" : "收起"}${esc(d.name)}" type="button">${dayCollapsed ? "▸" : "▾"}</button><button class="visibility-button${d.visible ? "" : " is-hidden"}" data-toggle-day="${dayKey}" type="button">${d.visible ? "◉" : "○"}</button><input class="day-title" data-day-title="${dayKey}" value="${esc(d.name)}" maxlength="20" /><button class="mini-button" data-delete-day="${dayKey}" title="删除这一天" type="button">×</button></div><div class="place-list${dayCollapsed ? " is-collapsed" : ""}" data-drop-day="${dayKey}">${list}${endToNext}</div></div>`;
+                })
+                .join(
+                  "",
+                )}<button class="add-day" data-add-day="${t.id}" type="button">+ 添加一天</button></div></section>`;
+            },
+          )
+          .join("");
+        root.querySelectorAll("[data-collapse-trip]").forEach((b) =>
+          b.addEventListener("click", () => {
+            const id = +b.dataset.collapseTrip;
+            if (collapsedTrips.has(id)) collapsedTrips.delete(id);
+            else collapsedTrips.add(id);
+            renderSidebar();
+          }),
+        );
+        root.querySelectorAll("[data-collapse-day]").forEach((b) =>
+          b.addEventListener("click", () => {
+            const key = b.dataset.collapseDay;
+            if (collapsedDays.has(key)) collapsedDays.delete(key);
+            else collapsedDays.add(key);
+            renderSidebar();
+          }),
+        );
+        root.querySelectorAll("[data-place]").forEach((b) => {
+          b.addEventListener("click", () => selectPlace(+b.dataset.place));
+          b.addEventListener("dragstart", (e) => {
+            draggedId = +b.dataset.place;
+            b.classList.add("is-dragging");
+            e.dataTransfer.effectAllowed = "move";
+          });
+          b.addEventListener("dragend", () => {
+            draggedId = null;
+            b.classList.remove("is-dragging");
+          });
+          b.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            b.classList.add("is-drag-over");
+          });
+          b.addEventListener("dragleave", () =>
+            b.classList.remove("is-drag-over"),
+          );
+          b.addEventListener("drop", (e) => {
+            e.preventDefault();
+            b.classList.remove("is-drag-over");
+            movePlace(draggedId, +b.dataset.place);
+          });
+        });
+        root.querySelectorAll("[data-drop-day]").forEach((x) => {
+          x.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            x.classList.add("drop-target");
+          });
+          x.addEventListener("dragleave", () =>
+            x.classList.remove("drop-target"),
+          );
+          x.addEventListener("drop", (e) => {
+            e.preventDefault();
+            x.classList.remove("drop-target");
+            const [t, d] = x.dataset.dropDay.split(":").map(Number);
+            movePlace(draggedId, null, t, d);
+          });
+        });
+        root.querySelectorAll("[data-toggle-trip]").forEach((b) =>
+          b.addEventListener("click", () => {
+            const t = trips.find((x) => x.id === +b.dataset.toggleTrip);
+            t.visible = !t.visible;
+            render();
+          }),
+        );
+        root.querySelectorAll("[data-toggle-day]").forEach((b) =>
+          b.addEventListener("click", () => {
+            const [t, d] = b.dataset.toggleDay.split(":").map(Number),
+              day = trips.find((x) => x.id === t).days.find((x) => x.id === d);
+            day.visible = !day.visible;
+            render();
+          }),
+        );
+        root.querySelectorAll("[data-trip-title]").forEach((x) =>
+          x.addEventListener("change", () => {
+            trips.find((t) => t.id === +x.dataset.tripTitle).title =
+              x.value.trim() || "未命名行程";
+            render();
+          }),
+        );
+        root.querySelectorAll("[data-day-title]").forEach((x) =>
+          x.addEventListener("change", () => {
+            const [t, d] = x.dataset.dayTitle.split(":").map(Number);
+            trips.find((z) => z.id === t).days.find((z) => z.id === d).name =
+              x.value.trim() || "未命名日期";
+            render();
+          }),
+        );
+        root
+          .querySelectorAll("[data-add-day]")
+          .forEach((b) =>
+            b.addEventListener("click", () => addDay(+b.dataset.addDay)),
+          );
+        root
+          .querySelectorAll("[data-delete-trip]")
+          .forEach((b) =>
+            b.addEventListener("click", () =>
+              deleteTrip(+b.dataset.deleteTrip),
+            ),
+          );
+        root.querySelectorAll("[data-delete-day]").forEach((b) =>
+          b.addEventListener("click", () => {
+            const [t, d] = b.dataset.deleteDay.split(":").map(Number);
+            deleteDay(t, d);
+          }),
+        );
+        root.querySelectorAll("[data-segment]").forEach((x) =>
+          x.addEventListener("change", () => {
+            const [a, b] = x.dataset.segment.split(":").map(Number),
+              from = places.find((p) => p.id === a),
+              to = places.find((p) => p.id === b);
+            if (from && to) {
+              const previous = segmentModes[segmentKey(from, to)],
+                text = typeof previous === "object" ? previous.text || "" : "";
+              segmentModes[segmentKey(from, to)] = { mode: x.value, text };
+              renderSidebar();
+              renderRouteOptionsPanel();
+            }
+          }),
+        );
+        root.querySelectorAll("[data-custom-segment]").forEach((x) =>
+          x.addEventListener("change", () => {
+            const [a, b] = x.dataset.customSegment.split(":").map(Number),
+              from = places.find((p) => p.id === a),
+              to = places.find((p) => p.id === b);
+            if (from && to)
+              segmentModes[segmentKey(from, to)] = {
+                mode: "custom",
+                text: x.value.trim() || "自定义出行",
+              };
+          }),
+        );
+      }
+      function clearPlanningRoute() {
+        if (routeHalo) map.removeLayer(routeHalo);
+        if (routePath) map.removeLayer(routePath);
+        distanceLabels.forEach((x) => map.removeLayer(x));
+        routeHalo = null;
+        routePath = null;
+        distanceLabels = [];
+      }
+      function enableNoteDrag(marker, place) {
+        const el = marker.getElement?.(),
+          note = el?.querySelector?.("[data-note-place]");
+        if (!note) return;
+        let drag = null;
+        const stop = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        };
+        const move = (event) => {
+          if (!drag) return;
+          stop(event);
+          const x = Math.round(drag.offset.x + event.clientX - drag.x),
+            y = Math.round(drag.offset.y + event.clientY - drag.y);
+          place.noteOffset = { x, y };
+          note.style.setProperty("--note-x", `${x}px`);
+          note.style.setProperty("--note-y", `${y}px`);
+        };
+        const end = (event) => {
+          if (!drag) return;
+          stop(event);
+          drag = null;
+          note.classList.remove("is-dragging");
+          map.dragging.enable();
+          document.removeEventListener("pointermove", move, true);
+          document.removeEventListener("pointerup", end, true);
+          document.removeEventListener("pointercancel", end, true);
+        };
+        note.addEventListener("pointerdown", (event) => {
+          stop(event);
+          drag = {
+            x: event.clientX,
+            y: event.clientY,
+            offset: { ...(place.noteOffset || { x: 0, y: 0 }) },
+          };
+          note.classList.add("is-dragging");
+          map.dragging.disable();
+          document.addEventListener("pointermove", move, true);
+          document.addEventListener("pointerup", end, true);
+          document.addEventListener("pointercancel", end, true);
+        });
+      }
+      function mapNoteZoomScale() {
+        return Math.max(0.64, Math.min(1.9, Math.pow(1.12, map.getZoom() - 12)));
+      }
+      function updateMapNoteScale() {
+        const zoomScale = mapNoteZoomScale();
+        mapNoteMarkers.forEach((marker) => {
+          const card = marker.getElement?.()?.querySelector("[data-map-note]");
+          if (!card) return;
+          const note = mapNotes.find((n) => String(n.id) === card.dataset.mapNote);
+          if (note)
+            card.style.setProperty(
+              "--map-note-scale",
+              `${(Number(note.scale) || 1) * zoomScale}`,
+            );
+        });
+      }
+      function fitMapNoteText(value, element) {
+        if (!element) return;
+        const probe = document.createElement("span");
+        probe.textContent = String(value || "点击编辑这张便签");
+        probe.style.cssText = `position:fixed;left:-10000px;top:0;width:170px;white-space:pre-wrap;overflow-wrap:anywhere;visibility:hidden;font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;font-weight:600;line-height:1.35;`;
+        document.body.appendChild(probe);
+        let size = 24;
+        while (size > 10) {
+          probe.style.fontSize = `${size}px`;
+          if (probe.getBoundingClientRect().height <= 76) break;
+          size -= 1;
+        }
+        element.style.setProperty("--note-font-size", `${size}px`);
+        probe.remove();
+      }
+      function mapNoteIcon(note) {
+        const scale = (Number(note.scale) || 1) * mapNoteZoomScale();
+        return L.divIcon({
+          className: "",
+          iconSize: [190, 120],
+          iconAnchor: [0, 0],
+          html: `<div class="free-map-note" data-map-note="${note.id}" style="--map-note-scale:${scale}"><div class="free-note-toolbar"><span class="free-note-grip" data-map-note-grip title="拖动便签">⠿</span><button class="free-note-tool" data-map-note-resize="down" type="button" title="缩小便签">−</button><button class="free-note-tool" data-map-note-resize="up" type="button" title="放大便签">＋</button><button class="free-note-tool free-note-delete" data-map-note-delete type="button" title="删除便签">×</button></div><div class="free-note-text" contenteditable="true" spellcheck="false" tabindex="0" role="textbox" aria-label="地图便签内容" data-map-note-text data-placeholder="点击编辑便签">${esc(note.text)}</div><span class="free-note-resizer" data-map-note-resize-handle title="拖动调整便签大小" role="button" aria-label="拖动调整便签大小"></span></div>`,
+        });
+      }
+      function bindMapNoteEvents(marker, note) {
+        const el = marker.getElement(), card = el?.querySelector("[data-map-note]");
+        if (!card) return;
+        const stop = (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        };
+        const text = card.querySelector("[data-map-note-text]"),
+          grip = card.querySelector("[data-map-note-grip]"),
+          resizeHandle = card.querySelector("[data-map-note-resize-handle]");
+        fitMapNoteText(note.text, text);
+        text.addEventListener("pointerdown", (event) => {
+          event.stopPropagation();
+          requestAnimationFrame(() => text.focus({ preventScroll: true }));
+        });
+        text.addEventListener("click", (event) => {
+          event.stopPropagation();
+          text.focus({ preventScroll: true });
+        });
+        text.addEventListener("keydown", (event) => event.stopPropagation());
+        // Leaflet 会把双击冒泡到地图层并触发放大；隔离点击事件，但保留滚轮缩放地图。
+        L.DomEvent.disableClickPropagation(card);
+        card.addEventListener("dblclick", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        });
+        card.addEventListener("click", (event) => event.stopPropagation());
+        card.addEventListener("mousedown", (event) => event.stopPropagation());
+        card.querySelectorAll("button,[contenteditable],[data-map-note-resize-handle]").forEach((target) => {
+          target.addEventListener("pointerdown", (event) => event.stopPropagation());
+          target.addEventListener("dblclick", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+          });
+          target.addEventListener("click", (event) => event.stopPropagation());
+        });
+        text.addEventListener("input", () => {
+          note.text = text.innerText.slice(0, 500);
+          fitMapNoteText(note.text, text);
+          scheduleWorkspaceSave();
+        });
+        card.querySelectorAll("[data-map-note-resize]").forEach((button) => {
+          button.addEventListener("click", (event) => {
+            stop(event);
+            note.scale = Math.max(0.6, Math.min(2.4, (Number(note.scale) || 1) + (button.dataset.mapNoteResize === "up" ? 0.15 : -0.15)));
+            renderMapNotes();
+            scheduleWorkspaceSave();
+          });
+        });
+        card.querySelector("[data-map-note-delete]").addEventListener("click", (event) => {
+          stop(event);
+          mapNotes = mapNotes.filter((n) => n.id !== note.id);
+          render();
+        });
+        let resizing = null;
+        const resizeMove = (event) => {
+          if (!resizing) return;
+          stop(event);
+          const delta =
+            ((event.clientX - resizing.x) + (event.clientY - resizing.y)) / 2;
+          note.scale = Math.max(
+            0.6,
+            Math.min(2.4, resizing.scale * (1 + delta / 190)),
+          );
+          card.style.setProperty(
+            "--map-note-scale",
+            `${note.scale * mapNoteZoomScale()}`,
+          );
+        };
+        const resizeEnd = (event) => {
+          if (!resizing) return;
+          stop(event);
+          resizing = null;
+          card.classList.remove("is-resizing");
+          map.dragging.enable();
+          document.removeEventListener("pointermove", resizeMove, true);
+          document.removeEventListener("pointerup", resizeEnd, true);
+          document.removeEventListener("pointercancel", resizeEnd, true);
+          scheduleWorkspaceSave();
+        };
+        resizeHandle.addEventListener("pointerdown", (event) => {
+          stop(event);
+          resizing = {
+            x: event.clientX,
+            y: event.clientY,
+            scale: Number(note.scale) || 1,
+          };
+          card.classList.add("is-resizing");
+          map.dragging.disable();
+          document.addEventListener("pointermove", resizeMove, true);
+          document.addEventListener("pointerup", resizeEnd, true);
+          document.addEventListener("pointercancel", resizeEnd, true);
+        });
+        let dragging = false;
+        const move = (event) => {
+          if (!dragging) return;
+          const box = map.getContainer().getBoundingClientRect();
+          const latlng = map.containerPointToLatLng([event.clientX - box.left, event.clientY - box.top]);
+          note.lat = latlng.lat;
+          note.lng = latlng.lng;
+          marker.setLatLng(latlng);
+        };
+        const end = (event) => {
+          if (!dragging) return;
+          stop(event);
+          dragging = false;
+          card.classList.remove("is-dragging");
+          map.dragging.enable();
+          document.removeEventListener("pointermove", move, true);
+          document.removeEventListener("pointerup", end, true);
+          document.removeEventListener("pointercancel", end, true);
+          scheduleWorkspaceSave();
+        };
+        grip.addEventListener("pointerdown", (event) => {
+          stop(event);
+          dragging = true;
+          card.classList.add("is-dragging");
+          map.dragging.disable();
+          document.addEventListener("pointermove", move, true);
+          document.addEventListener("pointerup", end, true);
+          document.addEventListener("pointercancel", end, true);
+        });
+      }
+      function renderMapNotes() {
+        mapNoteMarkers.forEach((m) => map.removeLayer(m));
+        mapNoteMarkers = mapNotes.map((note) => {
+          const marker = L.marker([note.lat, note.lng], {
+            icon: mapNoteIcon(note),
+            keyboard: false,
+            interactive: true,
+            zIndexOffset: 800,
+          });
+          // 必须在加入地图前绑定 add 事件，否则 Leaflet 会先触发 add，
+          // 便签的编辑、缩放、删除和拖动控件都会变成无响应。
+          marker.on("add", () => bindMapNoteEvents(marker, note));
+          marker.addTo(map);
+          return marker;
+        });
+      }
+      function render() {
+        const order = orderedPlaces();
+        markers.forEach((m) => map.removeLayer(m));
+        markers = [];
+        order.forEach((p, i) => {
+          if (!visible(p)) return;
+          const m = L.marker([p.lat, p.lng], {
+            icon: markerIcon(p, i),
+            riseOnHover: true,
+          });
+          m.on("click", () => selectPlace(p.id));
+          // 与便签相同，先绑定 add，再加入地图，确保地点旁的备注拖拽可用。
+          m.on("add", () => enableNoteDrag(m, p));
+          m.addTo(map);
+          markers.push(m);
+        });
+        renderMapNotes();
+        if (currentLayer !== "navigation") renderRoute();
+        renderSidebar();
+        renderRouteOptionsPanel();
+        updateAddDays();
+        updateDetail();
+        scheduleWorkspaceSave();
+      }
+      function selectPlace(id) {
+        selectedId = id;
+        render();
+      }
+      function updateDetail() {
+        const p = places.find((x) => x.id === selectedId);
+        if (!p || !visible(p)) {
+          detail.hidden = true;
+          return;
+        }
+        const i = orderedPlaces().indexOf(p);
+        $("detailName").textContent = p.name;
+        detailTypeInput.value = p.type;
+        $("detailDot").style.background = typeColors[p.type];
+        noteInput.value = p.note || "";
+        $("moveEarlier").disabled = i === 0;
+        $("moveLater").disabled = i === orderedPlaces().length - 1;
+        detail.hidden = false;
+      }
+      function setAdding(v) {
+        if (v) setMapNoteAdding(false);
+        adding = v;
+        document.body.classList.toggle("is-adding", v);
+        addButton.textContent = v ? "请点击地图放置" : "在地图上标记";
+      }
+      function setMapNoteAdding(v) {
+        addingMapNote = v;
+        if (v && adding) setAdding(false);
+        const button = $("addMapNote");
+        button.textContent = v ? "请点击地图放置便签" : "＋ 添加便签";
+        button.classList.toggle("primary", v);
+        document.body.classList.toggle("is-adding-map-note", v);
+      }
+      function applyLayer(mode) {
+        currentLayer = mode;
+        const navigation = mode === "navigation",
+          show = mode !== "map";
+        baseLayer.setOpacity(
+          mode === "subdued" ? 0.5 : mode === "annotations" ? 0 : 1,
+        );
+        map.getPane("markerPane").style.visibility = show
+          ? "visible"
+          : "hidden";
+        map.getPane("overlayPane").style.visibility = show
+          ? "visible"
+          : "hidden";
+        document.body.classList.toggle("map-only", mode === "map");
+        document.body.classList.toggle(
+          "map-annotations-only",
+          mode === "annotations",
+        );
+        if (navigation) {
+          clearPlanningRoute();
+          $("navigationNote").textContent =
+            "请在右侧完成方式设置后，点击“计算导航”。";
+          $("navigationNote").hidden = false;
+        } else {
+          clearNavigation();
+          renderRoute();
+        }
+        if (mode === "map") {
+          setAdding(false);
+          setMapNoteAdding(false);
+        }
+        renderSidebar();
+        renderRouteOptionsPanel();
+      }
+      function movePlace(sourceId, targetId, targetTripId, targetDayId) {
+        if (!sourceId) return;
+        const src = places.find((p) => p.id === sourceId);
+        if (!src) return;
+        let target = targetId && places.find((p) => p.id === targetId);
+        if (target) {
+          targetTripId = target.tripId;
+          targetDayId = target.dayId;
+        }
+        const old = places.indexOf(src);
+        places.splice(old, 1);
+        src.tripId = targetTripId || src.tripId;
+        src.dayId = targetDayId || src.dayId;
+        if (target) {
+          const at = places.indexOf(target);
+          places.splice(at < 0 ? places.length : at, 0, src);
+        } else {
+          let at = places.length;
+          for (let i = places.length - 1; i >= 0; i--)
+            if (
+              places[i].tripId === src.tripId &&
+              places[i].dayId === src.dayId
+            ) {
+              at = i + 1;
+              break;
+            }
+          places.splice(at, 0, src);
+        }
+        cleanSegmentModes();
+        render();
+      }
+      function uniqueId() {
+        return Date.now() * 1000 + Math.floor(Math.random() * 999);
+      }
+      function cleanSegmentModes() {
+        const valid = new Set(
+          navigationSegments(true).map(({ from, to }) => segmentKey(from, to)),
+        );
+        segmentModes = Object.fromEntries(
+          Object.entries(segmentModes).filter(([key]) => valid.has(key)),
+        );
+        segmentRouteChoices = Object.fromEntries(
+          Object.entries(segmentRouteChoices).filter(([key]) => valid.has(key)),
+        );
+      }
+      function moveOrderedPlace(id, direction) {
+        const order = orderedPlaces(),
+          index = order.findIndex((p) => p.id === id),
+          target = index + direction;
+        if (index < 0 || target < 0 || target >= order.length) return;
+        const a = order[index],
+          b = order[target];
+        [a.tripId, b.tripId] = [b.tripId, a.tripId];
+        [a.dayId, b.dayId] = [b.dayId, a.dayId];
+        const ai = places.indexOf(a),
+          bi = places.indexOf(b);
+        [places[ai], places[bi]] = [places[bi], places[ai]];
+        cleanSegmentModes();
+        render();
+      }
+      function addTrip() {
+        const id = uniqueId(),
+          dayId = uniqueId();
+        trips.push({
+          id,
+          title: "未命名行程",
+          visible: true,
+          days: [{ id: dayId, name: "第一天", visible: true }],
+        });
+        updateAddDays();
+        render();
+      }
+      function addDay(id) {
+        const t = trips.find((x) => x.id === id);
+        if (!t) return;
+        const dayId = uniqueId();
+        t.days.push({
+          id: dayId,
+          name: `第${t.days.length + 1}天`,
+          visible: true,
+        });
+        updateAddDays();
+        render();
+      }
+      function deleteTrip(id) {
+        if (!confirm("删除这个行程标题及其地点？")) return;
+        trips = trips.filter((t) => t.id !== id);
+        places = places.filter((p) => p.tripId !== id);
+        normalize();
+        cleanSegmentModes();
+        selectedId = null;
+        render();
+      }
+      function deleteDay(tid, did) {
+        const t = trips.find((x) => x.id === tid);
+        if (!t) return;
+        if (t.days.length === 1) {
+          alert("每个行程至少保留一天。");
+          return;
+        }
+        if (!confirm("删除这一天及其中地点？")) return;
+        t.days = t.days.filter((d) => d.id !== did);
+        places = places.filter((p) => !(p.tripId === tid && p.dayId === did));
+        cleanSegmentModes();
+        selectedId = null;
+        render();
+      }
+      function deletePlace(id) {
+        places = places.filter((p) => p.id !== id);
+        cleanSegmentModes();
+        if (selectedId === id) selectedId = null;
+        render();
+      }
+      function fitAll() {
+        map.invalidateSize({ pan: false });
+        const ps = places.filter(visible);
+        if (ps.length)
+          map.fitBounds(L.latLngBounds(ps.map((p) => [p.lat, p.lng])), {
+            padding: [80, 340],
+            maxZoom: 8,
+            animate: false,
+          });
+        markers.forEach((marker) => marker.setLatLng(marker.getLatLng()));
+        mapNoteMarkers.forEach((marker) =>
+          marker.setLatLng(marker.getLatLng()),
+        );
+        render();
+      }
+      function showStatus(m) {
+        searchResults.innerHTML = `<p class="search-status">${esc(m)}</p>`;
+        searchResults.classList.add("is-open");
+      }
+      function clearSearch() {
+        selectedSearchPoi = null;
+        searchResults.innerHTML = "";
+        searchResults.classList.remove("is-open");
+      }
+      async function searchAmap() {
+        const keywords = nameInput.value.trim();
+        if (!keywords) {
+          showStatus("请输入要搜索的地点名称。");
+          nameInput.focus();
+          return;
+        }
+        searchController?.abort();
+        searchController = new AbortController();
+        searchButton.disabled = true;
+        searchButton.textContent = "…";
+        showStatus("正在搜索高德地点…");
+        try {
+          const p = new URLSearchParams({
+              key: amapKey,
+              keywords,
+              offset: "10",
+              page: "1",
+              extensions: "base",
+              output: "json",
+            }),
+            c = map.getCenter();
+          if (c.lng > 115 && c.lng < 118 && c.lat > 38 && c.lat < 41.5) {
+            p.set("city", "北京");
+            p.set("citylimit", "true");
+          }
+          const r = await fetch(`https://restapi.amap.com/v3/place/text?${p}`, {
+            signal: searchController.signal,
+          });
+          const d = await r.json();
+          if (!r.ok || d.status !== "1")
+            throw new Error(d.info || "高德服务暂时不可用");
+          const pois = (d.pois || []).filter((x) =>
+            String(x.location).includes(","),
+          );
+          if (!pois.length) {
+            showStatus("没有找到匹配地点，请换一个关键词。");
+            return;
+          }
+          searchResults.innerHTML = pois
+            .map(
+              (x, i) =>
+                `<button class="search-result" type="button" data-poi="${i}"><span class="search-result-name">${esc(x.name)}</span><span class="search-result-address">${esc(x.address || x.district || x.cityname || "暂无详细地址")}</span></button>`,
+            )
+            .join("");
+          searchResults.classList.add("is-open");
+          searchResults.querySelectorAll("[data-poi]").forEach((b) =>
+            b.addEventListener("click", () => {
+              const x = pois[+b.dataset.poi],
+                [lng, lat] = String(x.location).split(",").map(Number);
+              selectedSearchPoi = { name: x.name, type: poiType(x), lat, lng };
+              nameInput.value = x.name;
+              typeInput.value = selectedSearchPoi.type;
+              map.setView([lat, lng], Math.max(map.getZoom(), 16), {
+                animate: true,
+              });
+              showStatus(`已定位：${x.name}。点击“加入行程”即可添加。`);
+            }),
+          );
+        } catch (e) {
+          if (e.name !== "AbortError") showStatus(`搜索失败：${e.message}`);
+        } finally {
+          searchButton.disabled = false;
+          searchButton.textContent = "⌕";
+        }
+      }
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        if (selectedSearchPoi) {
+          const [t, d] = dayInput.value.split(":").map(Number);
+          places.push({
+            id: Date.now(),
+            name: selectedSearchPoi.name,
+            type: selectedSearchPoi.type,
+            tripId: t,
+            dayId: d,
+            lat: selectedSearchPoi.lat,
+            lng: selectedSearchPoi.lng,
+          });
+          nameInput.value = "";
+          clearSearch();
+          setAdding(false);
+          selectPlace(places.at(-1).id);
+        } else setAdding(!adding);
+      });
+      map.on("click", (e) => {
+        if (addingMapNote) {
+          mapNotes.push({
+            id: uniqueId(),
+            lat: e.latlng.lat,
+            lng: e.latlng.lng,
+            text: "点击编辑这张便签",
+            scale: 1,
+          });
+          setMapNoteAdding(false);
+          render();
+          return;
+        }
+        if (!adding) return;
+        const [t, d] = dayInput.value.split(":").map(Number);
+        const p = {
+          id: Date.now(),
+          name: nameInput.value.trim() || `${typeNames[typeInput.value]}地点`,
+          type: typeInput.value,
+          tripId: t,
+          dayId: d,
+          lat: e.latlng.lat,
+          lng: e.latlng.lng,
+        };
+        places.push(p);
+        nameInput.value = "";
+        clearSearch();
+        setAdding(false);
+        selectPlace(p.id);
+      });
+      searchButton.addEventListener("click", searchAmap);
+      nameInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          searchAmap();
+        }
+      });
+      nameInput.addEventListener("input", () => (selectedSearchPoi = null));
+      detailTypeInput.addEventListener("change", () => {
+        const p = places.find((x) => x.id === selectedId);
+        if (p && typeNames[detailTypeInput.value]) {
+          p.type = detailTypeInput.value;
+          render();
+        }
+      });
+      noteInput.addEventListener("change", () => {
+        const p = places.find((x) => x.id === selectedId);
+        if (p) {
+          p.note = noteInput.value.trim();
+          render();
+        }
+      });
+      $("fitMap").addEventListener("click", fitAll);
+      $("addMapNote").addEventListener("click", () =>
+        setMapNoteAdding(!addingMapNote),
+      );
+      $("collapseRouteOptions").addEventListener("click", () => {
+        routeOptionsCollapsed = true;
+        renderRouteOptionsPanel();
+      });
+      $("showRouteOptions").addEventListener("click", () => {
+        routeOptionsCollapsed = false;
+        renderRouteOptionsPanel();
+      });
+      map.on("zoom", updateMapNoteScale);
+      map.on("zoomend", renderMapNotes);
+      $("closeDetail").addEventListener("click", () => {
+        selectedId = null;
+        render();
+      });
+      $("moveEarlier").addEventListener("click", () =>
+        moveOrderedPlace(selectedId, -1),
+      );
+      $("moveLater").addEventListener("click", () =>
+        moveOrderedPlace(selectedId, 1),
+      );
+      $("deletePlace").addEventListener("click", () => deletePlace(selectedId));
+      $("addTrip").addEventListener("click", addTrip);
+      $("layerMode").addEventListener("change", (e) =>
+        applyLayer(e.target.value),
+      );
+      function setPanelHidden(name, hidden) {
+        const state = $(
+          name === "search" ? "searchPanelState" : "sidebarPanelState",
+        );
+        if (state) state.checked = hidden;
+        const show = $(name === "search" ? "showSearch" : "showSidebar");
+        show.hidden = !hidden;
+        try {
+          const s = JSON.parse(
+            localStorage.getItem("travel-map-panels-v1") || "{}",
+          );
+          s[name] = hidden;
+          localStorage.setItem("travel-map-panels-v1", JSON.stringify(s));
+        } catch (_) {}
+      }
+      try {
+        const ps = JSON.parse(
+          localStorage.getItem("travel-map-panels-v1") || "{}",
+        );
+        if (ps.search) setPanelHidden("search", true);
+        if (ps.sidebar) setPanelHidden("sidebar", true);
+      } catch (_) {}
+      // —— 草稿系统：命名保存 + 打开草稿 ——
+      function cloneState() {
+        return JSON.parse(
+          JSON.stringify({
+            trips,
+            places,
+            segmentModes,
+            mapNotes,
+            segmentRouteChoices,
+          }),
+        );
+      }
+      function applyState(st) {
+        trips = JSON.parse(JSON.stringify(st?.trips || trips));
+        places = JSON.parse(JSON.stringify(st?.places || places));
+        segmentModes = JSON.parse(JSON.stringify(st?.segmentModes || {}));
+        mapNotes = JSON.parse(JSON.stringify(st?.mapNotes || []));
+        segmentRouteChoices = JSON.parse(
+          JSON.stringify(st?.segmentRouteChoices || {}),
+        );
+      }
+      function loadDraftsStore() {
+        try {
+          const raw = localStorage.getItem(draftsKey);
+          if (raw) {
+            const d = JSON.parse(raw);
+            if (d && Array.isArray(d.drafts))
+              return {
+                activeDraftId: d.activeDraftId || null,
+                drafts: d.drafts,
+              };
+          }
+          return { activeDraftId: null, drafts: [] };
+        } catch (_) {
+          return { activeDraftId: null, drafts: [] };
+        }
+      }
+      function persistDrafts() {
+        try {
+          localStorage.setItem(
+            draftsKey,
+            JSON.stringify({ activeDraftId, drafts }),
+          );
+        } catch (_) {}
+        syncRemote();
+      }
+      function loadWorkspace() {
+        try {
+          const raw = localStorage.getItem(workspaceKey);
+          if (raw) {
+            const d = JSON.parse(raw);
+            if (
+              d &&
+              d.data &&
+              Array.isArray(d.data.trips) &&
+              Array.isArray(d.data.places)
+            )
+              return d;
+          }
+        } catch (_) {}
+        return null;
+      }
+      function persistWorkspace() {
+        try {
+          localStorage.setItem(
+            workspaceKey,
+            JSON.stringify({ savedAt: Date.now(), data: cloneState() }),
+          );
+        } catch (_) {}
+        syncRemote();
+      }
+      let workspaceTimer = null;
+      function scheduleWorkspaceSave() {
+        clearTimeout(workspaceTimer);
+        workspaceTimer = setTimeout(persistWorkspace, 400);
+      }
+      // —— 本地服务器数据文件模式：数据存桌面\旅行地图\data\travel-map-data.json ——
+      function setStorageStatus(remote) {
+        const el = $("storageStatus");
+        if (!el) return;
+        el.classList.toggle("is-remote", !!remote);
+        el.textContent = remote
+          ? "数据已保存到文件夹：旅行地图\\data\\travel-map-data.json"
+          : "浏览器本地模式（未连接数据服务器）";
+      }
+      async function initRemote() {
+        try {
+          const r = await fetch(`${remoteBase}/api/travel-data`, {
+            cache: "no-store",
+          });
+          if (r.status === 404) {
+            await pushRemote();
+            setStorageStatus(true);
+            return;
+          }
+          if (!r.ok) return;
+          const d = await r.json();
+          if (!d || !Array.isArray(d.drafts)) return;
+          drafts = d.drafts;
+          activeDraftId = d.activeDraftId || null;
+          const target = drafts.find((x) => x.id === activeDraftId),
+            ws = d.workspace;
+          if (
+            target &&
+            ws &&
+            JSON.stringify(ws.data) !== JSON.stringify(target.data)
+          )
+            applyState(ws.data);
+          else if (target) applyState(target.data);
+          else if (ws) applyState(ws.data);
+          normalize();
+          cleanSegmentModes();
+          selectedId = null;
+          lastSavedJson = stateSnapshot();
+          updateDraftLabel();
+          render();
+          fitAll();
+          applyLayer(currentLayer);
+          setStorageStatus(true);
+        } catch (_) {
+          setStorageStatus(false); /* 服务器未启动，保持本地模式 */
+        }
+      }
+      function pushRemote() {
+        const payload = {
+          version: 1,
+          activeDraftId,
+          drafts,
+          workspace: loadWorkspace(),
+        };
+        return fetch(`${remoteBase}/api/travel-data`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }).catch(() => {});
+      }
+      let remoteTimer = null;
+      function syncRemote() {
+        clearTimeout(remoteTimer);
+        remoteTimer = setTimeout(pushRemote, 250);
+      }
+      function stateSnapshot() {
+        try {
+          return JSON.stringify({
+            trips,
+            places,
+            segmentModes,
+            mapNotes,
+            segmentRouteChoices,
+          });
+        } catch (_) {
+          return "";
+        }
+      }
+      function fmtTime(ts) {
+        const d = new Date(ts),
+          p = (n) => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+      }
+      function draftStats(d) {
+        const p = d.data?.places || [],
+          ts = d.data?.trips || [];
+        const days = ts.reduce((n, t) => n + (t.days?.length || 0), 0);
+        return `${ts.length} 个行程 · ${days} 天 · ${p.length} 个地点`;
+      }
+      function updateDraftLabel() {
+        const d = drafts.find((x) => x.id === activeDraftId);
+        $("draftLabel").textContent = d
+          ? `当前草稿：${d.name}`
+          : "未命名 · 未保存";
+      }
+      function doSaveDraft(name) {
+        const n = String(name || "").trim() || "未命名草稿";
+        const existing = drafts.find((d) => d.name === n);
+        const id = existing ? existing.id : uniqueId();
+        const data = cloneState();
+        if (existing) {
+          existing.data = data;
+          existing.savedAt = Date.now();
+        } else {
+          drafts.push({ id, name: n, savedAt: Date.now(), data });
+        }
+        activeDraftId = id;
+        persistDrafts();
+        lastSavedJson = stateSnapshot();
+        updateDraftLabel();
+      }
+      function renderDraftList() {
+        const list = $("draftList");
+        if (!drafts.length) {
+          list.innerHTML =
+            '<p class="draft-empty">还没有保存过的草稿，点击右上角「保存草稿」新建一个。</p>';
+          return;
+        }
+        list.innerHTML = drafts
+          .map((d) => {
+            const active = d.id === activeDraftId;
+            return `<div class="draft-item${active ? " is-active" : ""}"><div class="draft-info"><span class="draft-name">${esc(d.name)}</span><span class="draft-meta">${fmtTime(d.savedAt)} · ${draftStats(d)}${active ? " · 当前打开" : ""}</span></div><div class="draft-actions"><button class="small-button" data-open-draft="${d.id}" type="button">打开</button><button class="small-button draft-delete" data-delete-draft="${d.id}" type="button">删除</button></div></div>`;
+          })
+          .join("");
+        list
+          .querySelectorAll("[data-open-draft]")
+          .forEach((b) =>
+            b.addEventListener("click", () => openDraft(+b.dataset.openDraft)),
+          );
+        list
+          .querySelectorAll("[data-delete-draft]")
+          .forEach((b) =>
+            b.addEventListener("click", () =>
+              deleteDraft(+b.dataset.deleteDraft),
+            ),
+          );
+      }
+      function openDraft(id) {
+        const d = drafts.find((x) => x.id === id);
+        if (!d) return;
+        if (
+          stateSnapshot() !== lastSavedJson &&
+          !confirm("当前修改尚未保存，打开其他草稿会丢失这些修改。确定继续吗？")
+        )
+          return;
+        applyState(d.data);
+        normalize();
+        cleanSegmentModes();
+        selectedId = null;
+        activeDraftId = id;
+        lastSavedJson = stateSnapshot();
+        updateDraftLabel();
+        $("draftsModal").hidden = true;
+        render();
+        fitAll();
+        applyLayer(currentLayer);
+      }
+      function deleteDraft(id) {
+        const d = drafts.find((x) => x.id === id);
+        if (!d) return;
+        if (!confirm(`确定删除草稿「${d.name}」吗？此操作不可恢复。`)) return;
+        drafts = drafts.filter((x) => x.id !== id);
+        if (activeDraftId === id) activeDraftId = null;
+        persistDrafts();
+        renderDraftList();
+        updateDraftLabel();
+      }
+      const saveModal = $("saveModal"),
+        draftsModal = $("draftsModal"),
+        draftNameInput = $("draftName");
+      $("savePlan").addEventListener("click", () => {
+        const active = drafts.find((d) => d.id === activeDraftId);
+        draftNameInput.value = active
+          ? active.name
+          : trips[0]?.title || "未命名草稿";
+        saveModal.hidden = false;
+        draftNameInput.focus();
+        draftNameInput.select();
+      });
+      $("confirmSave").addEventListener("click", () => {
+        doSaveDraft(draftNameInput.value);
+        saveModal.hidden = true;
+        const b = $("savePlan");
+        b.textContent = "已保存";
+        setTimeout(() => (b.textContent = "保存草稿"), 1400);
+      });
+      $("cancelSave").addEventListener(
+        "click",
+        () => (saveModal.hidden = true),
+      );
+      draftNameInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          $("confirmSave").click();
+        }
+      });
+      $("openDrafts").addEventListener("click", () => {
+        renderDraftList();
+        draftsModal.hidden = false;
+      });
+      $("closeDrafts").addEventListener(
+        "click",
+        () => (draftsModal.hidden = true),
+      );
+      function exportDrafts() {
+        const payload = {
+          app: "travel-map",
+          version: 2,
+          exportedAt: Date.now(),
+          drafts,
+          activeDraftId,
+          current: cloneState(),
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], {
+          type: "application/json",
+        });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `旅行地图-草稿备份-${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+      }
+      async function waitForExportImages(root) {
+        const images = [...root.querySelectorAll("img")];
+        const pending = Promise.all(
+          images.map(
+            (img) =>
+              img.complete
+                ? Promise.resolve()
+                : new Promise((resolve) => {
+                    img.addEventListener("load", resolve, { once: true });
+                    img.addEventListener("error", resolve, { once: true });
+                  }),
+          ),
+        );
+        await Promise.race([
+          pending,
+          new Promise((resolve) => setTimeout(resolve, 2500)),
+        ]);
+      }
+      async function exportGuideImage() {
+        const button = $("exportImage");
+        if (typeof html2canvas !== "function") {
+          alert("图片导出组件尚未加载，请确认网络正常后刷新页面再试。");
+          return;
+        }
+        const originalText = button.textContent;
+        button.disabled = true;
+        button.textContent = "生成图片…";
+        const sheet = document.createElement("div");
+        sheet.className = "guide-export-sheet";
+        sheet.id = "guideExportSheet";
+        sheet.setAttribute("aria-hidden", "true");
+        const draftName = $("draftLabel").textContent || "我的旅程";
+        sheet.innerHTML = `<header class="guide-export-header"><div><h1 class="guide-export-title">我的旅行攻略</h1><p class="guide-export-subtitle">${esc(draftName)}</p></div><p class="guide-export-time">导出时间：${new Date().toLocaleString("zh-CN")}</p></header><div class="guide-export-content"><div class="guide-export-map-frame"></div><section class="guide-export-itinerary"><h2>行程目录</h2></section></div><p class="guide-export-footer">地图数据 © OpenStreetMap contributors · 旅行地图</p>`;
+        const mapFrame = sheet.querySelector(".guide-export-map-frame"),
+          mapSource = $("map"),
+          mapRect = mapSource.getBoundingClientRect(),
+          mapClone = mapSource.cloneNode(true);
+        mapClone.removeAttribute("id");
+        mapClone.classList.add("guide-export-map");
+        mapClone.style.width = `${Math.max(720, Math.round(mapRect.width))}px`;
+        mapClone.style.height = `${Math.max(520, Math.round(mapRect.height))}px`;
+        mapFrame.appendChild(mapClone);
+        const itinerary = sheet.querySelector(".guide-export-itinerary"),
+          groups = $("tripGroups").cloneNode(true);
+        groups.id = "exportTripGroups";
+        groups.querySelectorAll(".days, .place-list").forEach((el) =>
+          el.classList.remove("is-collapsed"),
+        );
+        const sourceSelects = $("tripGroups").querySelectorAll("select"),
+          exportSelects = groups.querySelectorAll("select");
+        sourceSelects.forEach((select, i) => {
+          if (exportSelects[i]) exportSelects[i].value = select.value;
+        });
+        itinerary.appendChild(groups);
+        const routeList = $("routeOptionsList");
+        if (routeList?.textContent.trim()) {
+          const routeSection = document.createElement("section");
+          routeSection.className = "guide-export-route-options";
+          routeSection.innerHTML = "<h2>路线方案</h2>";
+          routeSection.appendChild(routeList.cloneNode(true));
+          itinerary.appendChild(routeSection);
+        }
+        document.body.appendChild(sheet);
+        try {
+          await waitForExportImages(sheet);
+          const exportWidth = Math.ceil(sheet.getBoundingClientRect().width);
+          const canvas = await html2canvas(sheet, {
+            backgroundColor: "#edf4ef",
+            scale: 2,
+            useCORS: true,
+            allowTaint: false,
+            imageTimeout: 15000,
+            logging: false,
+            windowWidth: Math.max(window.innerWidth, exportWidth + 60),
+            onclone: (doc) => {
+              const clonedSheet = doc.querySelector("#guideExportSheet");
+              if (clonedSheet) {
+                clonedSheet.style.left = "0";
+                clonedSheet.style.zIndex = "0";
+              }
+            },
+          });
+          const blob = await new Promise((resolve) =>
+            canvas.toBlob(resolve, "image/png"),
+          );
+          if (!blob) throw new Error("图片生成失败");
+          const url = URL.createObjectURL(blob),
+            a = document.createElement("a");
+          a.href = url;
+          a.download = `旅行地图-攻略-${new Date().toISOString().slice(0, 10)}.png`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          button.textContent = "已导出图片";
+          setTimeout(() => (button.textContent = originalText), 1600);
+        } catch (e) {
+          console.error("攻略图片导出失败", e);
+          alert(`导出图片失败：${e.message || "请稍后重试"}`);
+          button.textContent = originalText;
+        } finally {
+          sheet.remove();
+          button.disabled = false;
+        }
+      }
+      function importDraftsFile(file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const d = JSON.parse(reader.result);
+            if (!d || !Array.isArray(d.drafts))
+              throw new Error("文件里没有草稿数据");
+            const valid = d.drafts.filter(
+              (x) =>
+                x &&
+                x.data &&
+                Array.isArray(x.data.trips) &&
+                Array.isArray(x.data.places),
+            );
+            drafts = valid.map((x) => ({
+              id: Number.isFinite(+x.id) ? +x.id : uniqueId(),
+              name: String(x.name || "").trim() || "未命名草稿",
+              savedAt: +x.savedAt || Date.now(),
+              data: x.data,
+            }));
+            activeDraftId = null;
+            persistDrafts();
+            const target = valid.length
+              ? drafts.find((x) => String(x.id) === String(d.activeDraftId)) ||
+                drafts[0]
+              : null;
+            if (target) openDraft(target.id);
+            renderDraftList();
+            updateDraftLabel();
+          } catch (e) {
+            alert("导入失败：" + e.message);
+          }
+        };
+        reader.readAsText(file);
+      }
+      $("exportDrafts").addEventListener("click", exportDrafts);
+      $("exportImage").addEventListener("click", exportGuideImage);
+      $("importDrafts").addEventListener("click", () =>
+        $("importFile").click(),
+      );
+      $("importFile").addEventListener("change", (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (f) importDraftsFile(f);
+        e.target.value = "";
+      });
+      function saveNativePanelState(name, id) {
+        $(id).addEventListener("change", () => {
+          try {
+            const s = JSON.parse(
+              localStorage.getItem("travel-map-panels-v1") || "{}",
+            );
+            s[name] = $(id).checked;
+            localStorage.setItem("travel-map-panels-v1", JSON.stringify(s));
+          } catch (_) {}
+        });
+      }
+      saveNativePanelState("search", "searchPanelState");
+      saveNativePanelState("sidebar", "sidebarPanelState");
+      $("calculateNavigation").addEventListener("click", () => {
+        if (currentLayer !== "navigation") {
+          $("layerMode").value = "navigation";
+          applyLayer("navigation");
+        }
+        renderNavigation();
+      });
+      render();
+      fitAll();
+      applyLayer(currentLayer);
+      updateDraftLabel();
+      lastSavedJson = stateSnapshot();
+      initRemote();
+    </script>
+  </body>
+</html>
